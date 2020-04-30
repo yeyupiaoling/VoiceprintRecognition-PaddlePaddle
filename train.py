@@ -8,7 +8,7 @@ save_path = 'models/'
 # 初始化模型路径
 init_model = None
 # 类别总数
-CLASS_DIM = 10
+CLASS_DIM = 855
 
 # 定义输入层
 audio = fluid.data(name='audio', shape=[None, 1, 128, 128], dtype='float32')
@@ -27,7 +27,9 @@ acc = fluid.layers.accuracy(input=model, label=label)
 test_program = fluid.default_main_program().clone(for_test=True)
 
 # 定义优化方法
-optimizer = fluid.optimizer.AdamOptimizer(learning_rate=1e-3)
+optimizer = fluid.optimizer.AdamOptimizer(learning_rate=1e-3,
+                                          regularization=fluid.regularizer.L2Decay(
+                                              regularization_coeff=0.001))
 opts = optimizer.minimize(avg_cost)
 
 # 获取自定义数据

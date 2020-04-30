@@ -26,10 +26,7 @@ class ResNet50:
 
         pool = fluid.layers.pool2d(input=conv, pool_type='avg', global_pooling=True)
         flatten = fluid.layers.flatten(x=pool)
-        stdv = 1.0 / math.sqrt(pool.shape[1] * 1.0)
-        out = fluid.layers.fc(input=pool,
-                              size=class_dim,
-                              param_attr=fluid.param_attr.ParamAttr(initializer=fluid.initializer.Uniform(-stdv, stdv)))
+        out = fluid.layers.fc(input=flatten, size=class_dim, act='softmax')
         return out, flatten
 
     def conv_bn_layer(self, input, num_filters, filter_size, stride=1, groups=1, act=None):
