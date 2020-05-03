@@ -42,13 +42,13 @@ def infer(audio_path):
     feature = exe.run(program=infer_program,
                       feed={feeded_var_names[0]: data},
                       fetch_list=target_var)[0]
-    return feature
+    return feature[0]
 
 
 if __name__ == '__main__':
     # 要预测的两个人的音频文件
-    person1 = 'dataset/UrbanSound8K/audio/fold8/193699-2-0-46.wav'
-    person2 = 'dataset/UrbanSound8K/audio/fold8/193699-2-0-46.wav'
+    person1 = 'dataset/ST-CMDS-20170001_1-OS/20170001P00001A0101.wav'
+    person2 = 'dataset/ST-CMDS-20170001_1-OS/20170001P00001A0001.wav'
     feature1 = infer(person1)
     feature2 = infer(person2)
     # 对角余弦值

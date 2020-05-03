@@ -1,7 +1,7 @@
 import os
 import reader
 import paddle.fluid as fluid
-import resnet
+from vgg import VGG11
 
 # 保存模型路径
 save_path = 'models/'
@@ -16,7 +16,8 @@ label = fluid.data(name='label', shape=[None, 1], dtype='int64')
 
 
 # 获取网络模型
-model, feature = resnet.resnet50(audio, CLASS_DIM)
+vgg = VGG11()
+model, feature = vgg.net(audio, CLASS_DIM)
 
 # 获取损失函数和准确率函数
 cost = fluid.layers.cross_entropy(input=model, label=label)
@@ -87,5 +88,5 @@ for pass_id in range(100):
     # 保存预测模型
     if not os.path.exists(os.path.join(save_path, 'infer')):
         os.makedirs(os.path.join(save_path, 'infer'))
-    fluid.io.save_inference_model(dirname=save_path, feeded_var_names=[audio.name], target_vars=[feature], executor=exe)
+    fluid.io.save_inference_model(dirname=os.path.join(save_path, 'infer'), feeded_var_names=[audio.name], target_vars=[feature], executor=exe)
     print("Saved model to: %s" % os.path.join(save_path, 'infer'))

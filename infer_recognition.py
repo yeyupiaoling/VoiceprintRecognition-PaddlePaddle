@@ -47,7 +47,7 @@ def infer(audio_path):
     feature = exe.run(program=infer_program,
                       feed={feeded_var_names[0]: data},
                       fetch_list=target_var)[0]
-    return feature
+    return feature[0]
 
 
 # 加载要识别的音频库
