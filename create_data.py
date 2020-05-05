@@ -46,7 +46,7 @@ def convert_data(data_list_path, output_prefix):
             wav, sr = librosa.load(path, sr=16000)
             intervals = librosa.effects.split(wav, top_db=20)
             wav_output = []
-            wav_len = 32640
+            wav_len = int(16000 * 2.04)
             for sliced in intervals:
                 wav_output.extend(wav[sliced[0]:sliced[1]])
             for i in range(5):
