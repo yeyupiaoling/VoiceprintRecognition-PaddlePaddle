@@ -23,6 +23,7 @@ def load_data(data_path):
     wav_output = []
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
+    # [可能需要修改] 裁剪的音频长度：16000 * 秒数
     wav_len = int(16000 * 2.04)
     # 裁剪过长的音频，过短的补0
     if len(wav_output) > wav_len:

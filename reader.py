@@ -38,6 +38,7 @@ class ReadData(object):
 
 def mapper(sample):
     data, label = sample
+    # [可能需要修改] 梅尔频谱的shape
     data = list(struct.unpack('%sd' % (128 * 128), data))
     data = np.array(data).reshape((1, 128, 128)).astype(np.float32)
     assert (data is not None), 'data is None'

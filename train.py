@@ -10,7 +10,7 @@ init_model = None
 # 类别总数
 CLASS_DIM = 855
 
-# 定义输入层
+# [可能需要修改] 梅尔频谱的shape
 audio = fluid.data(name='audio', shape=[None, 1, 128, 128], dtype='float32')
 label = fluid.data(name='label', shape=[None, 1], dtype='int64')
 
