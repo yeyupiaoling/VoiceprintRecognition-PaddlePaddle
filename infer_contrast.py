@@ -54,7 +54,7 @@ if __name__ == '__main__':
     feature2 = infer(person2)
     # 对角余弦值
     dist = np.dot(feature1, feature2) / (np.linalg.norm(feature1) * np.linalg.norm(feature2))
-    if dist > 0.9:
+    if dist > 0.7:
         print("%s 和 %s 为同一个人，相似度为：%f" % (person1, person2, dist))
     else:
         print("%s 和 %s 不是同一个人，相似度为：%f" % (person1, person2, dist))

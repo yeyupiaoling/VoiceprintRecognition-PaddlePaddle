@@ -60,6 +60,7 @@ def load_audio_db(audio_db_path):
         feature = infer(path)
         person_name.append(name)
         person_feature.append(feature)
+        print("Loaded %s audio." % name)
 
 
 def recognition(path):
@@ -94,7 +95,7 @@ if __name__ == '__main__':
 
     while True:
         try:
-            i = input("按下回车键开机录音，录音4秒中：")
+            i = input("按下回车键开机录音，录音3秒中：")
             print("开始录音......")
             frames = []
             for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
@@ -112,7 +113,7 @@ if __name__ == '__main__':
 
             # 识别对比音频库的音频
             name, p = recognition(WAVE_OUTPUT_FILENAME)
-            if p > 0.9:
+            if p > 0.7:
                 print("识别说话的为：%s，相似度为：%f" % (name, p))
             else:
                 print("音频库没有该用户的语音")
