@@ -6,7 +6,7 @@ from vgg import VGG11
 # 保存模型路径
 save_path = 'models/'
 # 初始化模型路径
-init_model = None
+init_model = 'models/params/'
 # 类别总数
 CLASS_DIM = 855
 
@@ -14,35 +14,9 @@ CLASS_DIM = 855
 audio = fluid.data(name='audio', shape=[None, 1, 128, 128], dtype='float32')
 label = fluid.data(name='label', shape=[None, 1], dtype='int64')
 
-
-# 卷积神经网络
-def cnn(input, class_dim):
-    conv1 = fluid.layers.conv2d(input=input,
-                                num_filters=20,
-                                filter_size=5,
-                                act='relu')
-
-    conv2 = fluid.layers.conv2d(input=conv1,
-                                num_filters=50,
-                                filter_size=5,
-                                act='relu')
-
-    pool1 = fluid.layers.pool2d(input=conv2, pool_type='avg', global_pooling=True)
-
-    drop = fluid.layers.dropout(x=pool1, dropout_prob=0.5)
-    f1 = fluid.layers.fc(input=drop, size=128, act='relu')
-    bn = fluid.layers.batch_norm(f1)
-    f2 = fluid.layers.fc(input=bn, size=128, act='relu')
-    f3 = fluid.layers.fc(input=f2, size=class_dim, act='softmax')
-    return f3
-
-
 # 获取网络模型
-model = cnn(audio, CLASS_DIM)
-
-# 获取网络模型
-# vgg = VGG11()
-# model, feature = vgg.net(audio, CLASS_DIM)
+vgg = VGG11()
+model, feature = vgg.net(audio, CLASS_DIM)
 
 # 获取损失函数和准确率函数
 cost = fluid.layers.cross_entropy(input=model, label=label)
@@ -77,7 +51,7 @@ if init_model:
     print("Init model from: %s." % init_model)
 
 # 训练
-for pass_id in range(100):
+for pass_id in range(500):
     # 进行训练
     for batch_id, data in enumerate(train_reader()):
         train_cost, train_acc = exe.run(program=fluid.default_main_program(),
