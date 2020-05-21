@@ -1,5 +1,5 @@
 # 前言
-本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，首先你需要熟悉音频分类，没有了解的可以查看这篇文章[《基于PaddlePaddle实现声音分类》](https://blog.doiduoyi.com/articles/2020/04/27/1587999549174.html)
+本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，首先你需要熟悉音频分类，没有了解的可以查看这篇文章[《基于PaddlePaddle实现声音分类》](https://blog.doiduoyi.com/articles/1587999549174.html)
 。基于这个知识基础之上，我们训练一个声纹识别模型，通过这个模型我们可以识别说话的人是谁，可以应用在一些需要音频验证的项目。
 
 # 环境准备
