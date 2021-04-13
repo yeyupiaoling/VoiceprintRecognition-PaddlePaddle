@@ -1,91 +1,92 @@
 import os
-import reader
-import paddle.fluid as fluid
-from vgg import VGG11
+from datetime import datetime
 
-# 保存模型路径
-save_path = 'models/'
-# 初始化模型路径
-init_model = 'models/params/'
-# 类别总数
-CLASS_DIM = 855
+import paddle
+import paddle.nn as nn
+from paddle.io import DataLoader
+from paddle.static import InputSpec
+from paddle.metric import accuracy
+from reader import CustomDataset
+from model import resnet50
 
-# [可能需要修改] 梅尔频谱的shape
-audio = fluid.data(name='audio', shape=[None, 1, 128, 128], dtype='float32')
-label = fluid.data(name='label', shape=[None, 1], dtype='int64')
+# 训练参数值
+train_list_path = 'dataset/train_list.txt'
+test_list_path = 'dataset/test_list.txt'
+mean_std_path = 'dataset/mean_std.npy'
+input_shape = (1, 257, 257)
+read_data_num_workers = 8
+batch_size = 32
+learning_rate = 1e-3
+num_classes = 3242
+epoch_num = 1000
+model_path = 'models/'
 
-# 获取网络模型
-vgg = VGG11()
-model, feature = vgg.net(audio, CLASS_DIM)
 
-# 获取损失函数和准确率函数
-cost = fluid.layers.cross_entropy(input=model, label=label)
-avg_cost = fluid.layers.mean(cost)
-acc = fluid.layers.accuracy(input=model, label=label)
+# 评估模型
+def test(model, test_loader):
+    model.eval()
+    accuracies = []
+    for batch_id, (spec_mag, label) in enumerate(test_loader()):
+        out, _ = model(spec_mag)
+        acc = accuracy(input=out, label=label)
+        accuracies.append(acc)
+    model.train()
+    return sum(accuracies) / len(accuracies)
 
-# 获取训练和测试程序
-test_program = fluid.default_main_program().clone(for_test=True)
 
-# 定义优化方法
-optimizer = fluid.optimizer.AdamOptimizer(learning_rate=1e-3,
-                                          regularization=fluid.regularizer.L2Decay(
-                                              regularization_coeff=0.001))
-opts = optimizer.minimize(avg_cost)
-
-# 获取自定义数据
-train_reader = reader.train_reader('dataset/train', batch_size=32)
-test_reader = reader.test_reader('dataset/test', batch_size=32)
-
-# 定义一个使用GPU的执行器
-place = fluid.CUDAPlace(0)
-exe = fluid.Executor(place)
-# 进行参数初始化
-exe.run(fluid.default_startup_program())
-
-# 加载初始化模型
-if init_model:
-    fluid.load(program=fluid.default_main_program(),
-               model_path=init_model,
-               executor=exe,
-               var_list=fluid.io.get_program_parameter(fluid.default_main_program()))
-    print("Init model from: %s." % init_model)
-
-# 训练
-for pass_id in range(500):
-    # 进行训练
-    for batch_id, data in enumerate(train_reader()):
-        train_cost, train_acc = exe.run(program=fluid.default_main_program(),
-                                        feed={audio.name: data[0], label.name: data[1]},
-                                        fetch_list=[avg_cost, acc])
-
-        # 每100个batch打印一次信息
-        if batch_id % 100 == 0:
-            print('Pass:%d, Batch:%d, Cost:%0.5f, Accuracy:%0.5f' %
-                  (pass_id, batch_id, train_cost[0], train_acc[0]))
-
-    # 进行测试
-    test_accs = []
-    test_costs = []
-    for batch_id, data in enumerate(test_reader()):
-        test_cost, test_acc = exe.run(program=test_program,
-                                      feed={audio.name: data[0], label.name: data[1]},
-                                      fetch_list=[avg_cost, acc])
-        test_accs.append(test_acc[0])
-        test_costs.append(test_cost[0])
-    # 求测试结果的平均值
-    test_cost = (sum(test_costs) / len(test_costs))
-    test_acc = (sum(test_accs) / len(test_accs))
-    print('Test:%d, Cost:%0.5f, Accuracy:%0.5f' % (pass_id, test_cost, test_acc))
-
-    # 保存参数
-    if not os.path.exists(os.path.join(save_path, 'params')):
-        os.makedirs(os.path.join(save_path, 'params'))
-    fluid.save(program=fluid.default_main_program(),
-               model_path=os.path.join(os.path.join(save_path, 'params'), "model"))
-    print("Saved model to: %s" % os.path.join(save_path, 'params'))
-
+# 保存模型
+def save_model(model, optimizer):
+    if not os.path.exists(os.path.join(model_path, 'params')):
+        os.makedirs(os.path.join(model_path, 'params'))
+    if not os.path.exists(os.path.join(model_path, 'infer')):
+        os.makedirs(os.path.join(model_path, 'infer'))
+    # 保存模型参数
+    paddle.save(model.state_dict(), os.path.join(model_path, 'params/model.pdparams'))
+    paddle.save(optimizer.state_dict(), os.path.join(model_path, 'params/optimizer.pdopt'))
     # 保存预测模型
-    if not os.path.exists(os.path.join(save_path, 'infer')):
-        os.makedirs(os.path.join(save_path, 'infer'))
-    fluid.io.save_inference_model(dirname=os.path.join(save_path, 'infer'), feeded_var_names=[audio.name], target_vars=[feature], executor=exe)
-    print("Saved model to: %s" % os.path.join(save_path, 'infer'))
+    paddle.jit.save(layer=model,
+                    path=os.path.join(model_path, 'infer/model'),
+                    input_spec=[InputSpec(shape=(None, ) + input_shape, dtype='float32')])
+
+
+def train():
+    # 获取数据
+    train_dataset = CustomDataset(train_list_path, mean_std_path=mean_std_path, model='train', spec_len=input_shape[2])
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=read_data_num_workers)
+
+    test_dataset = CustomDataset(test_list_path, mean_std_path=mean_std_path, model='test', spec_len=input_shape[2])
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, num_workers=read_data_num_workers)
+
+    # 获取模型
+    model = resnet50(num_classes=num_classes)
+    paddle.summary(model, input_size=[(None, ) + input_shape])
+
+    # 设置优化方法
+    optimizer = paddle.optimizer.Adam(parameters=model.parameters(),
+                                      learning_rate=learning_rate,
+                                      weight_decay=paddle.regularizer.L2Decay(1e-4))
+
+    # 获取损失函数
+    loss = nn.CrossEntropyLoss()
+    # 开始训练
+    for epoch in range(epoch_num):
+        loss_sum = []
+        for batch_id, (spec_mag, label) in enumerate(train_loader()):
+            out, feature = model(spec_mag)
+            # 计算损失值
+            los = loss(out, label)
+            loss_sum.append(los)
+            los.backward()
+            optimizer.step()
+            optimizer.clear_grad()
+            if batch_id % 100 == 0:
+                print('[%s] Train epoch %d, batch_id: %d, loss: %f' % (
+                    datetime.now(), epoch, batch_id, sum(loss_sum) / len(loss_sum)))
+                loss_sum = []
+        acc = test(model, test_loader)
+        print('[%s] Train epoch %d, accuracy: %d' % (datetime.now(), epoch, acc))
+        save_model(model, optimizer)
+
+
+if __name__ == '__main__':
+    train()

@@ -1,0 +1,6 @@
+paddlepaddle-gpu==2.0.1
+librosa==0.8.0
+numpy==1.19.2
+aukit==1.4.4
+tqdm==4.59.0
+webrtcvad==2.0.10

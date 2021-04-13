@@ -1,104 +1,68 @@
+import json
 import os
-import struct
-import uuid
-import librosa
-import random
-import numpy as np
+from random import sample
 from tqdm import tqdm
-
-
-class DataSetWriter(object):
-    def __init__(self, prefix):
-        # 创建对应的数据文件
-        self.data_file = open(prefix + '.data', 'wb')
-        self.header_file = open(prefix + '.header', 'wb')
-        self.label_file = open(prefix + '.label', 'wb')
-        self.offset = 0
-        self.header = ''
-
-    def add_data(self, key, data):
-        # 写入图像数据
-        self.data_file.write(struct.pack('I', len(key)))
-        self.data_file.write(key.encode('ascii'))
-        self.data_file.write(struct.pack('I', len(data)))
-        self.data_file.write(data)
-        self.offset += 4 + len(key) + 4
-        self.header = key + '\t' + str(self.offset) + '\t' + str(len(data)) + '\n'
-        self.header_file.write(self.header.encode('ascii'))
-        self.offset += len(data)
-
-    def add_label(self, label):
-        # 写入标签数据
-        self.label_file.write(label.encode('ascii') + '\n'.encode('ascii'))
-
-
-# 格式二进制转换
-def convert_data(data_list_path, output_prefix):
-    # 读取列表
-    data_list = open(data_list_path, "r").readlines()
-    print("train_data size:", len(data_list))
-
-    # 开始写入数据
-    writer = DataSetWriter(output_prefix)
-    for record in tqdm(data_list):
-        try:
-            path, label = record.replace('\n', '').split('\t')
-            wav, sr = librosa.load(path, sr=16000)
-            intervals = librosa.effects.split(wav, top_db=20)
-            wav_output = []
-            # [可能需要修改] 裁剪的音频长度：16000 * 秒数
-            wav_len = int(16000 * 2.04)
-            for sliced in intervals:
-                wav_output.extend(wav[sliced[0]:sliced[1]])
-            for i in range(5):
-                # 裁剪过长的音频，过短的补0
-                if len(wav_output) > wav_len:
-                    l = len(wav_output) - wav_len
-                    r = random.randint(0, l)
-                    wav_output = wav_output[r:wav_len + r]
-                else:
-                    wav_output.extend(np.zeros(shape=[wav_len - len(wav_output)], dtype=np.float32))
-                wav_output = np.array(wav_output)
-                # 转成梅尔频谱
-                ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).reshape(-1).tolist()
-                # [可能需要修改] 梅尔频谱的shape，librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).shape
-                if len(ps) != 128 * 128: continue
-                data = struct.pack('%sd' % len(ps), *ps)
-                # 写入对应的数据
-                key = str(uuid.uuid1())
-                writer.add_data(key, data)
-                writer.add_label('\t'.join([key, label.replace('\n', '')]))
-                if len(wav_output) <= wav_len:
-                    break
-        except Exception as e:
-            print(e)
+import librosa
+import numpy as np
 
 
 # 生成数据列表
-def get_data_list(audio_path, list_path):
-    files = os.listdir(audio_path)
+def get_data_list(infodata_path, list_path, zhvoice_path):
+    with open(infodata_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
 
     f_train = open(os.path.join(list_path, 'train_list.txt'), 'w')
     f_test = open(os.path.join(list_path, 'test_list.txt'), 'w')
 
     sound_sum = 0
-    s = set()
-    for file in files:
-        if '.wav' not in file:
+    speakers = []
+    speakers_dict = {}
+    for line in tqdm(lines):
+        line = json.loads(line.replace('\n', ''))
+        duration_ms = line['duration_ms']
+        if duration_ms < 1300:
             continue
-        s.add(file[:15])
-        sound_path = os.path.join(audio_path, file)
+        speaker = line['speaker']
+        if speaker not in speakers:
+            speakers_dict[speaker] = len(speakers)
+            speakers.append(speaker)
+        label = speakers_dict[speaker]
+        sound_path = os.path.join(zhvoice_path, line['index'])
         if sound_sum % 100 == 0:
-            f_test.write('%s\t%d\n' % (sound_path.replace('\\', '/'), len(s) - 1))
+            f_test.write('%s\t%d\n' % (sound_path.replace('\\', '/'), label))
         else:
-            f_train.write('%s\t%d\n' % (sound_path.replace('\\', '/'), len(s) - 1))
+            f_train.write('%s\t%d\n' % (sound_path.replace('\\', '/'), label))
         sound_sum += 1
 
     f_test.close()
     f_train.close()
 
 
+# 计算均值和标准值
+def compute_mean_std(data_list_path='dataset/train_list.txt', output_path='dataset/mean_std.npy', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
+    with open(data_list_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    lines = sample(lines, 5000)
+    data = None
+    for line in tqdm(lines):
+        audio_path, _ = line.split('\t')
+        audio_path = os.path.join('E:\PyCharm', audio_path)
+        wav, sr_ret = librosa.load(audio_path, sr=sr)
+        extended_wav = np.append(wav, wav[::-1])
+        linear = librosa.stft(extended_wav, n_fft=n_fft, win_length=win_length, hop_length=hop_length)
+        linear_T = linear.T
+        mag, _ = librosa.magphase(linear_T)
+        mag_T = mag.T
+        spec_mag = mag_T[:, :spec_len]
+        if data is None:
+            data = np.array(spec_mag, dtype='float32')
+        else:
+            data = np.vstack((data, spec_mag))
+    mean = np.mean(data, 0, keepdims=True)
+    std = np.std(data, 0, keepdims=True)
+    np.save(output_path, [mean, std])
+
+
 if __name__ == '__main__':
-    get_data_list('dataset/ST-CMDS-20170001_1-OS', 'dataset')
-    convert_data('dataset/train_list.txt', 'dataset/train')
-    convert_data('dataset/test_list.txt', 'dataset/test')
+    get_data_list('dataset/zhvoice/text/infodata.json', 'dataset', 'dataset/zhvoice')
+    compute_mean_std('dataset/train_list.txt')
