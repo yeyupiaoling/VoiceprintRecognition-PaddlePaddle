@@ -39,9 +39,9 @@ def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, ho
 
 # 数据加载器
 class CustomDataset(Dataset):
-    def __init__(self, train_list_path, mean_std_path, model='train', spec_len=257):
+    def __init__(self, data_list_path, mean_std_path, model='train', spec_len=257):
         super(CustomDataset, self).__init__()
-        with open(train_list_path, 'r') as f:
+        with open(data_list_path, 'r') as f:
             self.lines = f.readlines()
         self.mean, self.std = np.load(mean_std_path)
         self.mean_std_path = mean_std_path

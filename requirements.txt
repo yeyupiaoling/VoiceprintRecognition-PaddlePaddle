@@ -8,3 +8,4 @@ webrtcvad==2.0.10
 visualdl==2.1.1
 pyaudio==0.2.11
 pyworld==0.2.12
+pydub==0.25.1
