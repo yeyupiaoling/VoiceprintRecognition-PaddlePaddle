@@ -1,54 +1,39 @@
+import argparse
+import functools
 import os
 import wave
-import librosa
+
 import numpy as np
-import paddle.fluid as fluid
+import paddle
 import pyaudio
 
+from utils.reader import load_audio
+from utils.utility import add_arguments, print_arguments
 
-# 创建执行器
-place = fluid.CPUPlace()
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
+parser = argparse.ArgumentParser(description=__doc__)
+add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
+add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
+add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
+args = parser.parse_args()
 
-# 保存预测模型路径
-save_path = 'models/infer'
+print_arguments(args)
+
+
+model = paddle.jit.load(args.model_path)
+model.eval()
+
+mean, std = np.load(args.mean_std_path)
 person_feature = []
 person_name = []
 
-[infer_program,
- feeded_var_names,
- target_var] = fluid.io.load_inference_model(dirname=save_path, executor=exe)
-
-
-# 读取音频数据
-def load_data(data_path):
-    wav, sr = librosa.load(data_path, sr=16000)
-    intervals = librosa.effects.split(wav, top_db=20)
-    wav_output = []
-    for sliced in intervals:
-        wav_output.extend(wav[sliced[0]:sliced[1]])
-    # [可能需要修改] 裁剪的音频长度：16000 * 秒数
-    wav_len = int(16000 * 2.04)
-    # 裁剪过长的音频，过短的补0
-    if len(wav_output) > wav_len:
-        wav_output = wav_output[:wav_len]
-    else:
-        wav_output.extend(np.zeros(shape=[wav_len - len(wav_output)], dtype=np.float32))
-    wav_output = np.array(wav_output)
-    # 获取梅尔频谱
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
-    ps = ps[np.newaxis, np.newaxis, ...]
-    return ps
-
 
 def infer(audio_path):
-    data = load_data(audio_path)
+    input_shape = eval(args.input_shape)
+    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
     # 执行预测
-    feature = exe.run(program=infer_program,
-                      feed={feeded_var_names[0]: data},
-                      fetch_list=target_var)[0]
-    return feature[0]
+    _, feature = model(data)
+    return feature
 
 
 # 加载要识别的音频库
@@ -83,7 +68,7 @@ if __name__ == '__main__':
     CHANNELS = 1
     RATE = 16000
     RECORD_SECONDS = 3
-    WAVE_OUTPUT_FILENAME = "infer_audio.wav"
+    WAVE_OUTPUT_FILENAME = "dataset/temp.wav"
 
     # 打开录音
     p = pyaudio.PyAudio()

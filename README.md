@@ -519,3 +519,7 @@ if __name__ == '__main__':
         except:
             pass
 ```
+
+```shell
+CUDA_VISIBLE_DEVICES=0 python train.py
+```

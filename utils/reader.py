@@ -1,10 +1,7 @@
-import os
-import time
-
 import librosa
 import numpy as np
 from paddle.io import Dataset
-from aukit import remove_silence
+from aukit import remove_silence, remove_noise
 
 
 # 加载并预处理音频
@@ -14,6 +11,7 @@ def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, ho
     # 推理的数据要移除静音部分
     if mode == 'infer':
         wav = remove_silence(wav, sr)
+        wav = remove_noise(wav, sr)
     # 数据拼接
     if mode == 'train':
         extended_wav = np.append(wav, wav)
@@ -52,7 +50,6 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         audio_path, label = self.lines[idx].replace('\n', '').split('\t')
-        audio_path = os.path.join('E:\PyCharm', audio_path)
         spec_mag = load_audio(audio_path, mode=self.model, spec_len=self.spec_len, mean=self.mean, std=self.std)
         return spec_mag, np.array(int(label), dtype=np.int64)
 

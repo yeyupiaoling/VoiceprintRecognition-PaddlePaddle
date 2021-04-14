@@ -1,60 +1,46 @@
-import librosa
+import argparse
+import functools
+
 import numpy as np
-import paddle.fluid as fluid
+import paddle
 
-# 创建执行器
-place = fluid.CPUPlace()
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
+from utils.reader import load_audio
+from utils.utility import add_arguments, print_arguments
 
-# 保存预测模型路径
-save_path = 'models/infer'
+parser = argparse.ArgumentParser(description=__doc__)
+add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('audio_path1',      str,    'audio/a_1.wav',          '训练使用的GPU序号')
+add_arg('audio_path2',      str,    'audio/a_2.wav',          '训练使用的GPU序号')
+add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
+add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
+add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
+args = parser.parse_args()
+
+print_arguments(args)
 
 
-[infer_program,
- feeded_var_names,
- target_var] = fluid.io.load_inference_model(dirname=save_path, executor=exe)
+model = paddle.jit.load(args.model_path)
+model.eval()
 
-
-# 读取音频数据
-def load_data(data_path):
-    wav, sr = librosa.load(data_path, sr=16000)
-    intervals = librosa.effects.split(wav, top_db=20)
-    wav_output = []
-    for sliced in intervals:
-        wav_output.extend(wav[sliced[0]:sliced[1]])
-    # [可能需要修改] 裁剪的音频长度：16000 * 秒数
-    wav_len = int(16000 * 2.04)
-    # 裁剪过长的音频，过短的补0
-    if len(wav_output) > wav_len:
-        wav_output = wav_output[:wav_len]
-    else:
-        wav_output.extend(np.zeros(shape=[wav_len - len(wav_output)], dtype=np.float32))
-    wav_output = np.array(wav_output)
-    # 获取梅尔频谱
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
-    ps = ps[np.newaxis, np.newaxis, ...]
-    return ps
+mean, std = np.load(args.mean_std_path)
 
 
 def infer(audio_path):
-    data = load_data(audio_path)
+    input_shape = eval(args.input_shape)
+    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
     # 执行预测
-    feature = exe.run(program=infer_program,
-                      feed={feeded_var_names[0]: data},
-                      fetch_list=target_var)[0]
-    return feature[0]
+    _, feature = model(data)
+    return feature
 
 
 if __name__ == '__main__':
+    infer(args)
     # 要预测的两个人的音频文件
-    person1 = 'dataset/ST-CMDS-20170001_1-OS/20170001P00001A0101.wav'
-    person2 = 'dataset/ST-CMDS-20170001_1-OS/20170001P00001A0001.wav'
-    feature1 = infer(person1)
-    feature2 = infer(person2)
+    feature1 = infer(args.audio_path1)
+    feature2 = infer(args.audio_path2)
     # 对角余弦值
     dist = np.dot(feature1, feature2) / (np.linalg.norm(feature1) * np.linalg.norm(feature2))
     if dist > 0.7:
-        print("%s 和 %s 为同一个人，相似度为：%f" % (person1, person2, dist))
+        print("%s 和 %s 为同一个人，相似度为：%f" % (args.audio_path1, args.audio_path2, dist))
     else:
-        print("%s 和 %s 不是同一个人，相似度为：%f" % (person1, person2, dist))
+        print("%s 和 %s 不是同一个人，相似度为：%f" % (args.audio_path1, args.audio_path2, dist))

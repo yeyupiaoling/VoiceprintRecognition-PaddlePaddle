@@ -4,6 +4,7 @@ from random import sample
 from tqdm import tqdm
 import librosa
 import numpy as np
+from pydub import AudioSegment
 
 
 # 生成数据列表
@@ -28,10 +29,19 @@ def get_data_list(infodata_path, list_path, zhvoice_path):
             speakers.append(speaker)
         label = speakers_dict[speaker]
         sound_path = os.path.join(zhvoice_path, line['index'])
-        if sound_sum % 100 == 0:
-            f_test.write('%s\t%d\n' % (sound_path.replace('\\', '/'), label))
+        save_path = "%s.wav" % sound_path[:-4]
+        if not os.path.exists(save_path):
+            try:
+                wav = AudioSegment.from_mp3(sound_path)
+                wav.export(save_path, format="wav")
+                os.remove(sound_path)
+            except Exception as e:
+                print('数据出错：%s, 信息：%s' % (sound_path, e))
+                continue
+        if sound_sum % 200 == 0:
+            f_test.write('%s\t%d\n' % (save_path.replace('\\', '/'), label))
         else:
-            f_train.write('%s\t%d\n' % (sound_path.replace('\\', '/'), label))
+            f_train.write('%s\t%d\n' % (save_path.replace('\\', '/'), label))
         sound_sum += 1
 
     f_test.close()
@@ -46,7 +56,6 @@ def compute_mean_std(data_list_path='dataset/train_list.txt', output_path='datas
     data = None
     for line in tqdm(lines):
         audio_path, _ = line.split('\t')
-        audio_path = os.path.join('E:\PyCharm', audio_path)
         wav, sr_ret = librosa.load(audio_path, sr=sr)
         extended_wav = np.append(wav, wav[::-1])
         linear = librosa.stft(extended_wav, n_fft=n_fft, win_length=win_length, hop_length=hop_length)

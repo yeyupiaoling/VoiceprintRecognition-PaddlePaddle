@@ -3,5 +3,4 @@ __pycache__/
 dataset/*
 !dataset/mean_std.npy
 models/
-audio_db/
-infer_audio.wav
+log/
