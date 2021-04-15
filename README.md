@@ -1,12 +1,17 @@
 # 前言
-本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，首先你需要熟悉音频分类，没有了解的可以查看这篇文章[《基于PaddlePaddle实现声音分类》](https://blog.doiduoyi.com/articles/1587999549174.html)。基于这个知识基础之上，我们训练一个声纹识别模型，通过这个模型我们可以识别说话的人是谁，可以应用在一些需要音频验证的项目。
+本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，首先你需要熟悉音频分类，没有了解的可以查看这篇文章[《基于PaddlePaddle实现声音分类》](https://blog.doiduoyi.com/articles/1587999549174.html) 。基于这个知识基础之上，我们训练一个声纹识别模型，通过这个模型我们可以识别说话的人是谁，可以应用在一些需要音频验证的项目。
 
 使用环境：
 
  - Python 3.7
  - PaddlePaddle 2.0.1
 
-## 安装libsora
+# 模型下载
+| 数据集 | 准确率 | 下载地址 |
+| :---: | :---: | :---: |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 训练中 | [训练中]() |
+
+# 安装环境
 最简单的方式就是使用pip命令安装，如下：
 ```shell
 pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
@@ -15,7 +20,7 @@ pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 注意：libsora和pyaudio容易安装出错，这里介绍解决办法。
 
 
-libsora安装失败解决办法，使用源码安装，下载源码：[https://github.com/librosa/librosa/releases/](https://github.com/librosa/librosa/releases/)， windows的可以下载zip压缩包，方便解压。
+libsora安装失败解决办法，使用源码安装，下载源码：[https://github.com/librosa/librosa/releases/](https://github.com/librosa/librosa/releases/) ，windows的可以下载zip压缩包，方便解压。
 ```shell
 pip install pytest-runner
 tar xzf librosa-<版本号>.tar.gz 或者 unzip librosa-<版本号>.tar.gz
@@ -25,7 +30,7 @@ python setup.py install
 
 如果出现`libsndfile64bit.dll': error 0x7e`错误，请指定安装版本0.6.3，如`pip install librosa==0.6.3`
 
-安装ffmpeg， 下载地址：[http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/)，笔者下载的是64位，static版。
+安装ffmpeg， 下载地址：[http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/](http://blog.gregzaal.com/how-to-install-ffmpeg-on-windows/) ，笔者下载的是64位，static版。
 然后到C盘，笔者解压，修改文件名为`ffmpeg`，存放在`C:\Program Files\`目录下，并添加环境变量`C:\Program Files\ffmpeg\bin`
 
 最后修改源码，路径为`C:\Python3.7\Lib\site-packages\audioread\ffdec.py`，修改32行代码，如下：
@@ -37,7 +42,7 @@ pyaudio安装失败解决办法，在安装的时候需要使用到C++库进行�
 
 
 # 创建数据
-本教程笔者使用的是[中文语音语料数据集](https://github.com/KuangDD/zhvoice)，这个数据集一共有3242个人的语音数据，有102600条语音数据。如果读者有其他更好的数据集，可以混合在一起使用，但要用python的工具模块aukit处理音频，降噪和去除静音。
+本教程笔者使用的是[中文语音语料数据集](https://github.com/KuangDD/zhvoice) ，这个数据集一共有3242个人的语音数据，有1130000+条语音数据。如果读者有其他更好的数据集，可以混合在一起使用，但要用python的工具模块aukit处理音频，降噪和去除静音。
 
 首先是创建一个数据列表，数据列表的格式为`<语音文件路径\t语音分类标签>`，创建这个列表主要是方便之后的读取，也是方便读取使用其他的语音数据集，语音分类标签是指说话人的唯一ID，不同的语音数据集，可以通过编写对应的生成数据列表的函数，把这些数据集都写在同一个数据列表中。
 
@@ -272,12 +277,13 @@ def save_model(args, model, optimizer):
 ```
 
 # 声纹对比
-下面开始实现声纹对比，创建`infer_contrast.py`程序，编写两个函数，分类是加载数据和执行预测的函数，在这个加载数据函数中裁剪数据的长度必须要跟训练时的输入长度一样。而在执行预测之后得到数据的是语音的特征值。有了上面两个函数，就可以做声纹识别了。我们输入两个语音，通过预测函数获取他们的特征数据，使用这个特征数据可以求他们的对角余弦值，得到的结果可以作为他们相识度。对于这个相识度的阈值，读者可以根据自己项目的准确度要求进行修改。
+下面开始实现声纹对比，创建`infer_contrast.py`程序，编写`infer()`函数，在编写模型的时候，模型是有两个输出的，第一个是模型的分类输出，第二个是音频特征输出。所以在这里要输出的是音频的特征值，有了音频的特征值就可以做声纹识别了。我们输入两个语音，通过预测函数获取他们的特征数据，使用这个特征数据可以求他们的对角余弦值，得到的结果可以作为他们相识度。对于这个相识度的阈值`threshold`，读者可以根据自己项目的准确度要求进行修改。
 ```python
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('audio_path1',      str,    'audio/a_1.wav',          '预测第一个音频')
 add_arg('audio_path2',      str,    'audio/a_2.wav',          '预测第二个音频')
+add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
 add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
@@ -309,7 +315,7 @@ if __name__ == '__main__':
     feature2 = infer(args.audio_path2)
     # 对角余弦值
     dist = np.dot(feature1, feature2) / (np.linalg.norm(feature1) * np.linalg.norm(feature2))
-    if dist > 0.7:
+    if dist > args.threshold:
         print("%s 和 %s 为同一个人，相似度为：%f" % (args.audio_path1, args.audio_path2, dist))
     else:
         print("%s 和 %s 不是同一个人，相似度为：%f" % (args.audio_path1, args.audio_path2, dist))
@@ -317,45 +323,34 @@ if __name__ == '__main__':
 
 
 # 声纹识别
-在上面的声纹对比的基础上，我们创建`infer_recognition.py`实现声纹识别。同样是使用上面声纹对比的数据加载函数和预测函数，通过这两个同样获取语音的特征数据。
+在上面的声纹对比的基础上，我们创建`infer_recognition.py`实现声纹识别。同样是使用上面声纹对比的`infer()`预测函数，通过这两个同样获取语音的特征数据。
 ```python
-place = fluid.CPUPlace()
-exe = fluid.Executor(place)
-exe.run(fluid.default_startup_program())
 
-save_path = 'models/infer'
+parser = argparse.ArgumentParser(description=__doc__)
+add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
+add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
+add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
+add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
+args = parser.parse_args()
+
+print_arguments(args)
+
+
+model = paddle.jit.load(args.model_path)
+model.eval()
+
+mean, std = np.load(args.mean_std_path)
 person_feature = []
 person_name = []
 
-[infer_program,
- feeded_var_names,
- target_var] = fluid.io.load_inference_model(dirname=save_path, executor=exe)
-
-def load_data(data_path):
-    wav, sr = librosa.load(data_path, sr=16000)
-    intervals = librosa.effects.split(wav, top_db=20)
-    wav_output = []
-    for sliced in intervals:
-        wav_output.extend(wav[sliced[0]:sliced[1]])
-    # [可能需要修改] 裁剪的音频长度：16000 * 秒数
-    wav_len = int(16000 * 2.04)
-    # 裁剪过长的音频，过短的补0
-    if len(wav_output) > wav_len:
-        wav_output = wav_output[:wav_len]
-    else:
-        wav_output.extend(np.zeros(shape=[wav_len - len(wav_output)], dtype=np.float32))
-    wav_output = np.array(wav_output)
-    # 获取梅尔频谱
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
-    ps = ps[np.newaxis, np.newaxis, ...]
-    return ps
 
 def infer(audio_path):
-    data = load_data(audio_path)
-    feature = exe.run(program=infer_program,
-                      feed={feeded_var_names[0]: data},
-                      fetch_list=target_var)[0]
-    return feature[0]
+    input_shape = eval(args.input_shape)
+    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
+    # 执行预测
+    _, feature = model(data)
+    return feature
 ```
 
 不同的是笔者增加了`load_audio_db()`和`recognition()`，第一个函数是加载语音库中的语音数据，这些音频就是相当于已经注册的用户，他们注册的语音数据会存放在这里，如果有用户需要通过声纹登录，就需要拿到用户的语音和语音库中的语音进行声纹对比，如果对比成功，那就相当于登录成功并且获取用户注册时的信息数据。完成识别的主要在`recognition()`函数中，这个函数就是将输入的语音和语音库中的语音一一对比。
@@ -368,6 +363,8 @@ def load_audio_db(audio_db_path):
         feature = infer(path)
         person_name.append(name)
         person_feature.append(feature)
+        print("Loaded %s audio." % name)
+
 
 def recognition(path):
     name = ''
@@ -392,7 +389,7 @@ if __name__ == '__main__':
     CHANNELS = 1
     RATE = 16000
     RECORD_SECONDS = 3
-    WAVE_OUTPUT_FILENAME = "infer_audio.wav"
+    WAVE_OUTPUT_FILENAME = "dataset/temp.wav"
 
     # 打开录音
     p = pyaudio.PyAudio()
@@ -422,7 +419,7 @@ if __name__ == '__main__':
 
             # 识别对比音频库的音频
             name, p = recognition(WAVE_OUTPUT_FILENAME)
-            if p > 0.7:
+            if p > args.threshold:
                 print("识别说话的为：%s，相似度为：%f" % (name, p))
             else:
                 print("音频库没有该用户的语音")

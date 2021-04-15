@@ -13,6 +13,7 @@ from utils.utility import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
+add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
 add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
@@ -98,7 +99,7 @@ if __name__ == '__main__':
 
             # 识别对比音频库的音频
             name, p = recognition(WAVE_OUTPUT_FILENAME)
-            if p > 0.7:
+            if p > args.threshold:
                 print("识别说话的为：%s，相似度为：%f" % (name, p))
             else:
                 print("音频库没有该用户的语音")
