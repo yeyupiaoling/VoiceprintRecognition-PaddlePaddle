@@ -1,6 +1,7 @@
 import argparse
 import functools
 import os
+import shutil
 from datetime import datetime
 
 import paddle
@@ -16,7 +17,7 @@ from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
-add_arg('gpu',              str,   '0,1',                     '训练使用的GPU序号')
+add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    16,                       '读取数据的线程数量')
 add_arg('num_epoch',        int,    200,                      '训练的轮数')
@@ -60,11 +61,12 @@ def save_model(args, model, optimizer):
 
 
 def train(args):
-    if dist.get_rank() == 0:
-        # 日志记录器
-        writer = LogWriter(logdir='log')
     # 设置支持多卡训练
     dist.init_parallel_env()
+    if dist.get_rank() == 0:
+        shutil.rmtree('log', ignore_errors=True)
+        # 日志记录器
+        writer = LogWriter(logdir='log')
     # 数据输入的形状
     input_shape = eval(args.input_shape)
     # 获取数据
@@ -82,8 +84,12 @@ def train(args):
     model = paddle.DataParallel(model)
 
     # 设置优化方法
+    # 分段学习率
+    boundaries = [10, 40, 100, 170]
+    lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
+    scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
     optimizer = paddle.optimizer.Adam(parameters=model.parameters(),
-                                      learning_rate=args.learning_rate,
+                                      learning_rate=scheduler,
                                       weight_decay=paddle.regularizer.L2Decay(1e-4))
 
     # 加载预训练模型
