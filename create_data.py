@@ -5,6 +5,7 @@ from tqdm import tqdm
 import librosa
 import numpy as np
 from pydub import AudioSegment
+from utils.reader import load_audio
 
 
 # 生成数据列表
@@ -72,6 +73,26 @@ def compute_mean_std(data_list_path='dataset/train_list.txt', output_path='datas
     np.save(output_path, [mean, std])
 
 
+# 删除错误音频
+def remove_error_audio(data_list_path):
+    with open(data_list_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    lines1 = []
+    for line in tqdm(lines):
+        audio_path, _ = line.split('\t')
+        try:
+            spec_mag = load_audio(audio_path)
+            lines1.append(line)
+        except Exception as e:
+            print(audio_path)
+            print(e)
+    with open(data_list_path, 'w', encoding='utf-8') as f:
+        for line in lines1:
+            f.write(line)
+
+
 if __name__ == '__main__':
     get_data_list('dataset/zhvoice/text/infodata.json', 'dataset', 'dataset/zhvoice')
     compute_mean_std('dataset/train_list.txt')
+    remove_error_audio('dataset/train_list.txt')
+    remove_error_audio('dataset/test_list.txt')

@@ -19,11 +19,11 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
-add_arg('num_workers',      int,    16,                       '读取数据的线程数量')
-add_arg('num_epoch',        int,    200,                      '训练的轮数')
+add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
+add_arg('num_epoch',        int,    300,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
-add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
+add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
@@ -37,6 +37,7 @@ def test(model, test_loader):
     model.eval()
     accuracies = []
     for batch_id, (spec_mag, label) in enumerate(test_loader()):
+        label = paddle.reshape(label, shape=(-1, 1))
         out, _ = model(spec_mag)
         acc = accuracy(input=out, label=label)
         accuracies.append(acc)
@@ -57,7 +58,7 @@ def save_model(args, model, optimizer):
     # 保存预测模型
     paddle.jit.save(layer=model,
                     path=os.path.join(args.save_model, 'infer/model'),
-                    input_spec=[InputSpec(shape=(None, ) + input_shape, dtype='float32')])
+                    input_spec=[InputSpec(shape=[input_shape[0], input_shape[1], input_shape[2], input_shape[3]], dtype='float32')])
 
 
 def train(args):
@@ -70,24 +71,24 @@ def train(args):
     # 数据输入的形状
     input_shape = eval(args.input_shape)
     # 获取数据
-    train_dataset = CustomDataset(args.train_list_path, mean_std_path=args.mean_std_path, model='train', spec_len=input_shape[2])
+    train_dataset = CustomDataset(args.train_list_path, mean_std_path=args.mean_std_path, model='train', spec_len=input_shape[3])
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    test_dataset = CustomDataset(args.test_list_path, mean_std_path=args.mean_std_path, model='test', spec_len=input_shape[2])
+    test_dataset = CustomDataset(args.test_list_path, mean_std_path=args.mean_std_path, model='test', spec_len=input_shape[3])
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
     # 获取模型
     model = resnet50(num_classes=args.num_classes)
     if dist.get_rank() == 0:
-        paddle.summary(model, input_size=[(None, ) + input_shape])
+        paddle.summary(model, input_size=input_shape)
     # 设置支持多卡训练
     model = paddle.DataParallel(model)
 
-    # 设置优化方法
     # 分段学习率
-    boundaries = [10, 40, 100, 170]
+    boundaries = [30, 80, 170, 250]
     lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
     scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
+    # 设置优化方法
     optimizer = paddle.optimizer.Adam(parameters=model.parameters(),
                                       learning_rate=scheduler,
                                       weight_decay=paddle.regularizer.L2Decay(1e-4))
@@ -124,8 +125,11 @@ def train(args):
             acc = test(model, test_loader)
             print('[%s] Train epoch %d, accuracy: %d' % (datetime.now(), epoch, acc))
             writer.add_scalar('Test acc', acc, test_step)
+            # 记录学习率
+            writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
             test_step += 1
             save_model(args, model, optimizer)
+        scheduler.step()
 
 
 if __name__ == '__main__':

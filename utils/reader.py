@@ -5,9 +5,9 @@ from aukit import remove_silence, remove_noise
 
 
 # 加载并预处理音频
-def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
+def load_audio(audio_path, mean=None, std=None, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
     # 读取音频数据
-    wav, sr_ret = librosa.load(audio_path, sr=sr)
+    wav, sr_ret = librosa.load(audio_path, sr=sr, duration=1.3)
     # 推理的数据要移除静音部分
     if mode == 'infer':
         wav = remove_silence(wav, sr)
@@ -32,8 +32,9 @@ def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, ho
         spec_mag = mag_T[:, rand_time:rand_time + spec_len]
     else:
         spec_mag = mag_T[:, :spec_len]
-    spec_mag = (spec_mag - mean) / (std + 1e-5)
-    spec_mag = spec_mag[np.newaxis, :]
+    if mean is not None and std is not None:
+        spec_mag = (spec_mag - mean) / (std + 1e-5)
+        spec_mag = spec_mag[np.newaxis, :]
     return spec_mag
 
 
