@@ -115,7 +115,7 @@ if __name__ == '__main__':
     remove_error_audio('dataset/test_list.txt')
 ```
 
-执行程序，生成数据列表和均值标准值。
+执行程序，生成数据列表。
 ```shell
 python create_data.py
 ```

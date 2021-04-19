@@ -7,7 +7,7 @@ from aukit import remove_silence, remove_noise
 # 加载并预处理音频
 def load_audio(audio_path, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
     # 读取音频数据
-    wav, sr_ret = librosa.load(audio_path, sr=sr, duration=1.3)
+    wav, sr_ret = librosa.load(audio_path, sr=sr)
     # 推理的数据要移除静音部分
     if mode == 'infer':
         wav = remove_silence(wav, sr)
