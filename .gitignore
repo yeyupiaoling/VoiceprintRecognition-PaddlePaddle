@@ -1,6 +1,5 @@
 .idea/
 __pycache__/
-dataset/*
-!dataset/mean_std.npy
+dataset/
 models/
 log/

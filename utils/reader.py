@@ -5,7 +5,7 @@ from aukit import remove_silence, remove_noise
 
 
 # 加载并预处理音频
-def load_audio(audio_path, mean=None, std=None, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
+def load_audio(audio_path, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
     # 读取音频数据
     wav, sr_ret = librosa.load(audio_path, sr=sr, duration=1.3)
     # 推理的数据要移除静音部分
@@ -32,26 +32,25 @@ def load_audio(audio_path, mean=None, std=None, mode='train', win_length=400, sr
         spec_mag = mag_T[:, rand_time:rand_time + spec_len]
     else:
         spec_mag = mag_T[:, :spec_len]
-    if mean is not None and std is not None:
-        spec_mag = (spec_mag - mean) / (std + 1e-5)
-        spec_mag = spec_mag[np.newaxis, :]
+    mean = np.mean(spec_mag, 0, keepdims=True)
+    std = np.std(spec_mag, 0, keepdims=True)
+    spec_mag = (spec_mag - mean) / (std + 1e-5)
+    spec_mag = spec_mag[np.newaxis, :]
     return spec_mag
 
 
 # 数据加载器
 class CustomDataset(Dataset):
-    def __init__(self, data_list_path, mean_std_path, model='train', spec_len=257):
+    def __init__(self, data_list_path, model='train', spec_len=257):
         super(CustomDataset, self).__init__()
         with open(data_list_path, 'r') as f:
             self.lines = f.readlines()
-        self.mean, self.std = np.load(mean_std_path)
-        self.mean_std_path = mean_std_path
         self.model = model
         self.spec_len = spec_len
 
     def __getitem__(self, idx):
         audio_path, label = self.lines[idx].replace('\n', '').split('\t')
-        spec_mag = load_audio(audio_path, mode=self.model, spec_len=self.spec_len, mean=self.mean, std=self.std)
+        spec_mag = load_audio(audio_path, mode=self.model, spec_len=self.spec_len)
         return spec_mag, np.array(int(label), dtype=np.int64)
 
     def __len__(self):

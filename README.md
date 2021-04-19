@@ -91,33 +91,28 @@ if __name__ == '__main__':
     get_data_list('dataset/zhvoice/text/infodata.json', 'dataset', 'dataset/zhvoice')
 ```
 
-在创建数据列表之后，从训练数据中随机取5000条数据计算数据的均值和标准值，用于对归一化处理。
+在创建数据列表之后，可能有些数据的是错误的，所以我们要检查一下，将错误的数据删除。
 ```python
-def compute_mean_std(data_list_path='dataset/train_list.txt', output_path='dataset/mean_std.npy', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
+def remove_error_audio(data_list_path):
     with open(data_list_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-    lines = sample(lines, 5000)
-    data = None
+    lines1 = []
     for line in tqdm(lines):
         audio_path, _ = line.split('\t')
-        wav, sr_ret = librosa.load(audio_path, sr=sr)
-        extended_wav = np.append(wav, wav[::-1])
-        linear = librosa.stft(extended_wav, n_fft=n_fft, win_length=win_length, hop_length=hop_length)
-        linear_T = linear.T
-        mag, _ = librosa.magphase(linear_T)
-        mag_T = mag.T
-        spec_mag = mag_T[:, :spec_len]
-        if data is None:
-            data = np.array(spec_mag, dtype='float32')
-        else:
-            data = np.vstack((data, spec_mag))
-    mean = np.mean(data, 0, keepdims=True)
-    std = np.std(data, 0, keepdims=True)
-    np.save(output_path, [mean, std])
+        try:
+            spec_mag = load_audio(audio_path)
+            lines1.append(line)
+        except Exception as e:
+            print(audio_path)
+            print(e)
+    with open(data_list_path, 'w', encoding='utf-8') as f:
+        for line in lines1:
+            f.write(line)
 
 
 if __name__ == '__main__':
-    compute_mean_std('dataset/train_list.txt')
+    remove_error_audio('dataset/train_list.txt')
+    remove_error_audio('dataset/test_list.txt')
 ```
 
 执行程序，生成数据列表和均值标准值。
@@ -128,7 +123,7 @@ python create_data.py
 # 数据读取
 有了上面创建的数据列表和均值标准值，就可以用于训练读取。主要是把语音数据转换短时傅里叶变换的幅度谱，使用librosa可以很方便计算音频的特征，如梅尔频谱的API为`librosa.feature.melspectrogram()`，输出的是numpy值，可以直接用PaddlePaddle训练和预测。跟梅尔频谱同样很重要的梅尔倒谱（MFCCs）更多用于语音识别中，对应的API为`librosa.feature.mfcc()`。在本项目中使用的API分别是`librosa.stft()`和`librosa.magphase()`。在训练时，使用了数据增强，如随机翻转拼接，随机裁剪。经过处理，最终得到一个`257*257`的短时傅里叶变换的幅度谱。
 ```python
-def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
+def load_audio(audio_path, mode='train', win_length=400, sr=16000, hop_length=160, n_fft=512, spec_len=257):
     # 读取音频数据
     wav, sr_ret = librosa.load(audio_path, sr=sr)
     # 推理的数据要移除静音部分
@@ -155,24 +150,24 @@ def load_audio(audio_path, mean, std, mode='train', win_length=400, sr=16000, ho
         spec_mag = mag_T[:, rand_time:rand_time + spec_len]
     else:
         spec_mag = mag_T[:, :spec_len]
+    mean = np.mean(spec_mag, 0, keepdims=True)
+    std = np.std(spec_mag, 0, keepdims=True)
     spec_mag = (spec_mag - mean) / (std + 1e-5)
     spec_mag = spec_mag[np.newaxis, :]
     return spec_mag
 
 # 数据加载器
 class CustomDataset(Dataset):
-    def __init__(self, data_list_path, mean_std_path, model='train', spec_len=257):
+    def __init__(self, data_list_path, model='train', spec_len=257):
         super(CustomDataset, self).__init__()
         with open(data_list_path, 'r') as f:
             self.lines = f.readlines()
-        self.mean, self.std = np.load(mean_std_path)
-        self.mean_std_path = mean_std_path
         self.model = model
         self.spec_len = spec_len
 
     def __getitem__(self, idx):
         audio_path, label = self.lines[idx].replace('\n', '').split('\t')
-        spec_mag = load_audio(audio_path, mode=self.model, spec_len=self.spec_len, mean=self.mean, std=self.std)
+        spec_mag = load_audio(audio_path, mode=self.model, spec_len=self.spec_len)
         return spec_mag, np.array(int(label), dtype=np.int64)
 
     def __len__(self):
@@ -192,10 +187,10 @@ def train(args):
     # 数据输入的形状
     input_shape = eval(args.input_shape)
     # 获取数据
-    train_dataset = CustomDataset(args.train_list_path, mean_std_path=args.mean_std_path, model='train', spec_len=input_shape[2])
+    train_dataset = CustomDataset(args.train_list_path, model='train', spec_len=input_shape[2])
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    test_dataset = CustomDataset(args.test_list_path, mean_std_path=args.mean_std_path, model='test', spec_len=input_shape[2])
+    test_dataset = CustomDataset(args.test_list_path, model='test', spec_len=input_shape[2])
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
     # 获取模型
@@ -240,7 +235,7 @@ def train(args):
         # 多卡训练只使用一个进程执行评估和保存模型
         if dist.get_rank() == 0:
             acc = test(model, test_loader)
-            print('[%s] Train epoch %d, accuracy: %d' % (datetime.now(), epoch, acc))
+            print('[%s] Train epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
             writer.add_scalar('Test acc', acc, test_step)
             test_step += 1
             save_model(args, model, optimizer)
@@ -252,11 +247,12 @@ def test(model, test_loader):
     model.eval()
     accuracies = []
     for batch_id, (spec_mag, label) in enumerate(test_loader()):
+        label = paddle.reshape(label, shape=(-1, 1))
         out, _ = model(spec_mag)
         acc = accuracy(input=out, label=label)
-        accuracies.append(acc)
+        accuracies.append(acc.numpy()[0])
     model.train()
-    return sum(accuracies) / len(accuracies)
+    return float(sum(accuracies) / len(accuracies))
 ```
 
 同样的，每一轮训练结束保存一次模型，分别保存了可以恢复训练的模型参数，也可以作为预训练模型参数。还保存预测模型，用于之后预测。
@@ -285,7 +281,6 @@ add_arg('audio_path1',      str,    'audio/a_1.wav',          '预测第一个�
 add_arg('audio_path2',      str,    'audio/a_2.wav',          '预测第二个音频')
 add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
-add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
 
@@ -295,14 +290,11 @@ print_arguments(args)
 model = paddle.jit.load(args.model_path)
 model.eval()
 
-# 获取均值和标准值
-mean, std = np.load(args.mean_std_path)
-
 
 # 预测音频
 def infer(audio_path):
     input_shape = eval(args.input_shape)
-    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
+    data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
     # 执行预测
     _, feature = model(data)
     return feature
@@ -330,7 +322,6 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
 add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
-add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
 
@@ -340,14 +331,13 @@ print_arguments(args)
 model = paddle.jit.load(args.model_path)
 model.eval()
 
-mean, std = np.load(args.mean_std_path)
 person_feature = []
 person_name = []
 
 
 def infer(audio_path):
     input_shape = eval(args.input_shape)
-    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
+    data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
     # 执行预测
     _, feature = model(data)
     return feature

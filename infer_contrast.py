@@ -13,7 +13,6 @@ add_arg('audio_path1',      str,    'audio/a_1.wav',          '预测第一个�
 add_arg('audio_path2',      str,    'audio/a_2.wav',          '预测第二个音频')
 add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
-add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
 
@@ -23,14 +22,11 @@ print_arguments(args)
 model = paddle.jit.load(args.model_path)
 model.eval()
 
-# 获取均值和标准值
-mean, std = np.load(args.mean_std_path)
-
 
 # 预测音频
 def infer(audio_path):
     input_shape = eval(args.input_shape)
-    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
+    data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
     # 执行预测
     _, feature = model(data)
     return feature

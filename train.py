@@ -26,7 +26,6 @@ add_arg('learning_rate',    float,  1e-3,                     '初始学习率�
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
-add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('save_model',       str,    'models/',                '模型保存的路径')
 add_arg('pretrained_model', str,    None,                     '预训练模型的路径，当为None则不使用预训练模型')
 args = parser.parse_args()
@@ -71,10 +70,10 @@ def train(args):
     # 数据输入的形状
     input_shape = eval(args.input_shape)
     # 获取数据
-    train_dataset = CustomDataset(args.train_list_path, mean_std_path=args.mean_std_path, model='train', spec_len=input_shape[3])
+    train_dataset = CustomDataset(args.train_list_path, model='train', spec_len=input_shape[3])
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
-    test_dataset = CustomDataset(args.test_list_path, mean_std_path=args.mean_std_path, model='test', spec_len=input_shape[3])
+    test_dataset = CustomDataset(args.test_list_path, model='test', spec_len=input_shape[3])
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
     # 获取模型

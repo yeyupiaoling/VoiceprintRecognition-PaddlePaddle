@@ -14,7 +14,6 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
 add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
-add_arg('mean_std_path',    str,    'dataset/mean_std.npy',   '均值和标准值保存的路径')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
 
@@ -24,14 +23,13 @@ print_arguments(args)
 model = paddle.jit.load(args.model_path)
 model.eval()
 
-mean, std = np.load(args.mean_std_path)
 person_feature = []
 person_name = []
 
 
 def infer(audio_path):
     input_shape = eval(args.input_shape)
-    data = load_audio(audio_path, mean, std, mode='infer', spec_len=input_shape[2])
+    data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
     # 执行预测
     _, feature = model(data)
     return feature
