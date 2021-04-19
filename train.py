@@ -18,7 +18,7 @@ from utils.utility import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
-add_arg('batch_size',       int,    32,                       '训练的批量大小')
+add_arg('batch_size',       int,    24,                       '训练的批量大小')
 add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    300,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
@@ -40,9 +40,9 @@ def test(model, test_loader):
         label = paddle.reshape(label, shape=(-1, 1))
         out, _ = model(spec_mag)
         acc = accuracy(input=out, label=label)
-        accuracies.append(acc)
+        accuracies.append(acc.numpy()[0])
     model.train()
-    return sum(accuracies) / len(accuracies)
+    return float(sum(accuracies) / len(accuracies))
 
 
 # 保存模型
@@ -123,7 +123,7 @@ def train(args):
         # 多卡训练只使用一个进程执行评估和保存模型
         if dist.get_rank() == 0:
             acc = test(model, test_loader)
-            print('[%s] Train epoch %d, accuracy: %d' % (datetime.now(), epoch, acc))
+            print('[%s] Train epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
             writer.add_scalar('Test acc', acc, test_step)
             # 记录学习率
             writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
