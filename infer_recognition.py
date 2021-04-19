@@ -30,9 +30,11 @@ person_name = []
 def infer(audio_path):
     input_shape = eval(args.input_shape)
     data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
+    data = data[np.newaxis, :]
+    data = paddle.to_tensor(data, dtype='float32')
     # 执行预测
     _, feature = model(data)
-    return feature
+    return feature.numpy()
 
 
 # 加载要识别的音频库
@@ -41,7 +43,7 @@ def load_audio_db(audio_db_path):
     for audio in audios:
         path = os.path.join(audio_db_path, audio)
         name = audio[:-4]
-        feature = infer(path)
+        feature = infer(path)[0]
         person_name.append(name)
         person_feature.append(feature)
         print("Loaded %s audio." % name)
@@ -50,7 +52,7 @@ def load_audio_db(audio_db_path):
 def recognition(path):
     name = ''
     pro = 0
-    feature = infer(path)
+    feature = infer(path)[0]
     for i, person_f in enumerate(person_feature):
         dist = np.dot(feature, person_f) / (np.linalg.norm(feature) * np.linalg.norm(person_f))
         if dist > pro:
