@@ -30,6 +30,8 @@ def load_audio(audio_path, mode='train', win_length=400, sr=16000, hop_length=16
         # 随机裁剪
         rand_time = np.random.randint(0, freq_time - spec_len)
         spec_mag = mag_T[:, rand_time:rand_time + spec_len]
+    elif mode == 'infer':
+        spec_mag = mag_T
     else:
         spec_mag = mag_T[:, :spec_len]
     mean = np.mean(spec_mag, 0, keepdims=True)

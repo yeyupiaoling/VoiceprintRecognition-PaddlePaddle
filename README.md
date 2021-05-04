@@ -9,7 +9,7 @@
 # 模型下载
 | 数据集 | 准确率 | 下载地址 |
 | :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 训练中 | [训练中]() |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 0.96 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
 
 # 安装环境
 最简单的方式就是使用pip命令安装，如下：
@@ -271,6 +271,13 @@ def save_model(args, model, optimizer):
                     path=os.path.join(args.save_model, 'infer/model'),
                     input_spec=[InputSpec(shape=(None, ) + input_shape, dtype='float32')])
 ```
+
+训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210504214736429.png)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210504214736432.png)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210504214736389.png)
+
+
 
 # 声纹对比
 下面开始实现声纹对比，创建`infer_contrast.py`程序，编写`infer()`函数，在编写模型的时候，模型是有两个输出的，第一个是模型的分类输出，第二个是音频特征输出。所以在这里要输出的是音频的特征值，有了音频的特征值就可以做声纹识别了。我们输入两个语音，通过预测函数获取他们的特征数据，使用这个特征数据可以求他们的对角余弦值，得到的结果可以作为他们相识度。对于这个相识度的阈值`threshold`，读者可以根据自己项目的准确度要求进行修改。

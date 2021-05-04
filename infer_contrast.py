@@ -4,7 +4,6 @@ import functools
 import numpy as np
 import paddle
 
-from utils.model import *
 from utils.reader import load_audio
 from utils.utility import add_arguments, print_arguments
 

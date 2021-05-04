@@ -20,7 +20,7 @@ add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
 add_arg('batch_size',       int,    24,                       '训练的批量大小')
 add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
-add_arg('num_epoch',        int,    300,                      '训练的轮数')
+add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
@@ -84,7 +84,7 @@ def train(args):
     model = paddle.DataParallel(model)
 
     # 分段学习率
-    boundaries = [30, 80, 170, 250]
+    boundaries = [10, 30, 70, 100]
     lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
     scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
     # 设置优化方法
