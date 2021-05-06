@@ -27,6 +27,7 @@ add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的�
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model',       str,    'models/',                '模型保存的路径')
+add_arg('resume',           str,    None,                     '恢复训练，当为None则不使用预训练模型，使用恢复训练模型最好同时也改学习率')
 add_arg('pretrained_model', str,    None,                     '预训练模型的路径，当为None则不使用预训练模型')
 args = parser.parse_args()
 
@@ -94,8 +95,22 @@ def train(args):
 
     # 加载预训练模型
     if args.pretrained_model is not None:
-        model.set_state_dict(paddle.load(os.path.join(args.pretrained_model, 'model.pdparams')))
-        optimizer.set_state_dict(paddle.load(os.path.join(args.pretrained_model, 'optimizer.pdopt')))
+        model_dict = model.state_dict()
+        param_state_dict = paddle.load(os.path.join(args.pretrained_model, 'model.pdparams'))
+        for name, weight in model_dict.items():
+            if name in param_state_dict.keys():
+                if weight.shape != list(param_state_dict[name].shape):
+                    print('{} not used, shape {} unmatched with {} in model.'.
+                            format(name, list(param_state_dict[name].shape), weight.shape))
+                    param_state_dict.pop(name, None)
+            else:
+                print('Lack weight: {}'.format(name))
+        model.set_dict(param_state_dict)
+
+    # 恢复训练
+    if args.resume is not None:
+        model.set_state_dict(paddle.load(os.path.join(args.resume, 'model.pdparams')))
+        optimizer.set_state_dict(paddle.load(os.path.join(args.resume, 'optimizer.pdopt')))
 
     # 获取损失函数
     loss = nn.CrossEntropyLoss()
