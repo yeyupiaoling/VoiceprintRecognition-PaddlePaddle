@@ -1,27 +1,7 @@
-# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-from __future__ import division
-from __future__ import print_function
-
 import paddle
 import paddle.nn as nn
 
-
-__all__ = [
-    'ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152'
-]
+__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
 
 
 class BasicBlock(nn.Layer):
@@ -41,11 +21,9 @@ class BasicBlock(nn.Layer):
             norm_layer = nn.BatchNorm2D
 
         if dilation > 1:
-            raise NotImplementedError(
-                "Dilation > 1 not supported in BasicBlock")
+            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
 
-        self.conv1 = nn.Conv2D(
-            inplanes, planes, 3, padding=1, stride=stride, bias_attr=False)
+        self.conv1 = nn.Conv2D(inplanes, planes, 3, padding=1, stride=stride, bias_attr=False)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv2D(planes, planes, 3, padding=1, bias_attr=False)
@@ -103,8 +81,7 @@ class BottleneckBlock(nn.Layer):
             bias_attr=False)
         self.bn2 = norm_layer(width)
 
-        self.conv3 = nn.Conv2D(
-            width, planes * self.expansion, 1, bias_attr=False)
+        self.conv3 = nn.Conv2D(width, planes * self.expansion, 1, bias_attr=False)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU()
         self.downsample = downsample
@@ -156,7 +133,7 @@ class ResNet(nn.Layer):
 
     """
 
-    def __init__(self, block, depth, num_classes=1000, with_pool=True):
+    def __init__(self, block, depth):
         super(ResNet, self).__init__()
         layer_cfg = {
             18: [2, 2, 2, 2],
@@ -166,8 +143,6 @@ class ResNet(nn.Layer):
             152: [3, 8, 36, 3]
         }
         layers = layer_cfg[depth]
-        self.num_classes = num_classes
-        self.with_pool = with_pool
         self._norm_layer = nn.BatchNorm2D
 
         self.inplanes = 64
@@ -187,11 +162,7 @@ class ResNet(nn.Layer):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        if with_pool:
-            self.avgpool = nn.AdaptiveAvgPool2D((1, 1))
-
-        if num_classes > 0:
-            self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.pool = nn.AdaptiveMaxPool2D((1, 1))
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -211,9 +182,7 @@ class ResNet(nn.Layer):
                 norm_layer(planes * block.expansion), )
 
         layers = []
-        layers.append(
-            block(self.inplanes, planes, stride, downsample, 1, 64,
-                  previous_dilation, norm_layer))
+        layers.append(block(self.inplanes, planes, stride, downsample, 1, 64, previous_dilation, norm_layer))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes, norm_layer=norm_layer))
@@ -228,16 +197,10 @@ class ResNet(nn.Layer):
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        feature = self.layer4(x)
-
-        if self.with_pool:
-            feature = self.avgpool(feature)
-            feature = paddle.flatten(feature, 1)
-
-        if self.num_classes > 0:
-            x = self.fc(feature)
-
-        return x, feature
+        x = self.layer4(x)
+        x = self.pool(x)
+        feature = paddle.flatten(x, 1)
+        return feature
 
 
 def _resnet(Block, depth, **kwargs):

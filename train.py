@@ -6,12 +6,13 @@ from datetime import datetime
 
 import paddle
 import paddle.distributed as dist
-import paddle.nn as nn
 from paddle.io import DataLoader
 from paddle.metric import accuracy
 from paddle.static import InputSpec
 from visualdl import LogWriter
 from utils.model import *
+from utils.focal_loss import FocalLoss
+from utils.ArcMargin import ArcMarginProduct
 from utils.reader import CustomDataset
 from utils.utility import add_arguments, print_arguments
 
@@ -23,6 +24,8 @@ add_arg('num_workers',      int,    8,                        '读取数据的�
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
+add_arg('easy_margin',      bool,   False,                    '模型训练是否使用简易的边界计算')
+add_arg('gamma',            float,  2,                        'FocalLoss的gamma参数')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
@@ -33,13 +36,14 @@ args = parser.parse_args()
 
 
 # 评估模型
-def test(model, test_loader):
+def test(model, metric_fc, test_loader):
     model.eval()
     accuracies = []
     for batch_id, (spec_mag, label) in enumerate(test_loader()):
+        feature = model(spec_mag)
+        output = metric_fc(feature, label)
         label = paddle.reshape(label, shape=(-1, 1))
-        out, _ = model(spec_mag)
-        acc = accuracy(input=out, label=label)
+        acc = accuracy(input=output, label=label)
         accuracies.append(acc.numpy()[0])
     model.train()
     return float(sum(accuracies) / len(accuracies))
@@ -78,18 +82,20 @@ def train(args):
     test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
 
     # 获取模型
-    model = resnet50(num_classes=args.num_classes)
+    model = resnet34()
+    metric_fc = ArcMarginProduct(feature_dim=512, class_dim=args.num_classes, easy_margin=args.easy_margin)
     if dist.get_rank() == 0:
         paddle.summary(model, input_size=input_shape)
     # 设置支持多卡训练
     model = paddle.DataParallel(model)
+    metric_fc = paddle.DataParallel(metric_fc)
 
     # 分段学习率
     boundaries = [10, 30, 70, 100]
     lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
     scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
     # 设置优化方法
-    optimizer = paddle.optimizer.Adam(parameters=model.parameters(),
+    optimizer = paddle.optimizer.Adam(parameters=model.parameters() + metric_fc.parameters(),
                                       learning_rate=scheduler,
                                       weight_decay=paddle.regularizer.L2Decay(1e-4))
 
@@ -106,23 +112,26 @@ def train(args):
             else:
                 print('Lack weight: {}'.format(name))
         model.set_dict(param_state_dict)
+        print('成功加载预训练模型参数')
 
     # 恢复训练
     if args.resume is not None:
         model.set_state_dict(paddle.load(os.path.join(args.resume, 'model.pdparams')))
         optimizer.set_state_dict(paddle.load(os.path.join(args.resume, 'optimizer.pdopt')))
+        print('成功加载模型参数和优化方法参数')
 
     # 获取损失函数
-    loss = nn.CrossEntropyLoss()
+    loss = FocalLoss(gamma=args.gamma)
     train_step = 0
     test_step = 0
     # 开始训练
     for epoch in range(args.num_epoch):
         loss_sum = []
         for batch_id, (spec_mag, label) in enumerate(train_loader()):
-            out, feature = model(spec_mag)
+            feature = model(spec_mag)
+            output = metric_fc(feature, label)
             # 计算损失值
-            los = loss(out, label)
+            los = loss(output, label)
             loss_sum.append(los)
             los.backward()
             optimizer.step()
@@ -136,7 +145,7 @@ def train(args):
                 loss_sum = []
         # 多卡训练只使用一个进程执行评估和保存模型
         if dist.get_rank() == 0:
-            acc = test(model, test_loader)
+            acc = test(model, metric_fc, test_loader)
             print('[%s] Train epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
             writer.add_scalar('Test acc', acc, test_step)
             # 记录学习率
