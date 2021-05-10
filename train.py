@@ -19,7 +19,7 @@ from utils.utility import add_arguments, print_arguments
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
-add_arg('batch_size',       int,    24,                       '训练的批量大小')
+add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')

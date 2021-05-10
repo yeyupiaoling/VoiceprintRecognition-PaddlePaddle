@@ -9,7 +9,7 @@
 # 模型下载
 | 数据集 | 准确率 | 下载地址 |
 | :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 0.96 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 训练中 | [训练中]() |
 
 # 安装环境
 最简单的方式就是使用pip命令安装，如下：

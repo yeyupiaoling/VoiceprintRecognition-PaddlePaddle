@@ -30,7 +30,7 @@ def infer(audio_path):
     data = data[np.newaxis, :]
     data = paddle.to_tensor(data, dtype='float32')
     # 执行预测
-    _, feature = model(data)
+    feature = model(data)
     return feature.numpy()
 
 
