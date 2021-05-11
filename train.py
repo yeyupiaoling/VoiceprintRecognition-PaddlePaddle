@@ -23,7 +23,7 @@ add_arg('batch_size',       int,    32,                       '训练的批量�
 add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
-add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
+add_arg('learning_rate',    float,  1e-1,                     '初始学习率的大小')
 add_arg('easy_margin',      bool,   False,                    '模型训练是否使用简易的边界计算')
 add_arg('gamma',            float,  2,                        'FocalLoss的gamma参数')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
