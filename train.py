@@ -10,9 +10,8 @@ from paddle.io import DataLoader
 from paddle.metric import accuracy
 from paddle.static import InputSpec
 from visualdl import LogWriter
-from utils.model import *
-from utils.focal_loss import FocalLoss
-from utils.ArcMargin import ArcMarginProduct
+from utils.resnet import resnet34
+from utils.ArcMargin import ArcNet
 from utils.reader import CustomDataset
 from utils.utility import add_arguments, print_arguments
 
@@ -24,8 +23,6 @@ add_arg('num_workers',      int,    8,                        '读取数据的�
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-1,                     '初始学习率的大小')
-add_arg('easy_margin',      bool,   False,                    '模型训练是否使用简易的边界计算')
-add_arg('gamma',            float,  2,                        'FocalLoss的gamma参数')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
@@ -36,6 +33,7 @@ args = parser.parse_args()
 
 
 # 评估模型
+@paddle.no_grad()
 def test(model, metric_fc, test_loader):
     model.eval()
     accuracies = []
@@ -50,7 +48,7 @@ def test(model, metric_fc, test_loader):
 
 
 # 保存模型
-def save_model(args, model, optimizer):
+def save_model(args, model, metric_fc, optimizer):
     input_shape = eval(args.input_shape)
     if not os.path.exists(os.path.join(args.save_model, 'params')):
         os.makedirs(os.path.join(args.save_model, 'params'))
@@ -58,6 +56,7 @@ def save_model(args, model, optimizer):
         os.makedirs(os.path.join(args.save_model, 'infer'))
     # 保存模型参数
     paddle.save(model.state_dict(), os.path.join(args.save_model, 'params/model.pdparams'))
+    paddle.save(metric_fc.state_dict(), os.path.join(args.save_model, 'params/metric_fc.pdparams'))
     paddle.save(optimizer.state_dict(), os.path.join(args.save_model, 'params/optimizer.pdopt'))
     # 保存预测模型
     paddle.jit.save(layer=model,
@@ -83,7 +82,7 @@ def train(args):
 
     # 获取模型
     model = resnet34()
-    metric_fc = ArcMarginProduct(feature_dim=512, class_dim=args.num_classes, easy_margin=args.easy_margin)
+    metric_fc = ArcNet(feature_dim=512, class_dim=args.num_classes)
     if dist.get_rank() == 0:
         paddle.summary(model, input_size=input_shape)
     # 设置支持多卡训练
@@ -117,11 +116,12 @@ def train(args):
     # 恢复训练
     if args.resume is not None:
         model.set_state_dict(paddle.load(os.path.join(args.resume, 'model.pdparams')))
+        metric_fc.set_state_dict(paddle.load(os.path.join(args.resume, 'metric_fc.pdparams')))
         optimizer.set_state_dict(paddle.load(os.path.join(args.resume, 'optimizer.pdopt')))
         print('成功加载模型参数和优化方法参数')
 
     # 获取损失函数
-    loss = FocalLoss(gamma=args.gamma)
+    loss = paddle.nn.CrossEntropyLoss()
     train_step = 0
     test_step = 0
     # 开始训练
@@ -146,12 +146,14 @@ def train(args):
         # 多卡训练只使用一个进程执行评估和保存模型
         if dist.get_rank() == 0:
             acc = test(model, metric_fc, test_loader)
-            print('[%s] Train epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
+            print('='*70)
+            print('[%s] Test epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
+            print('='*70)
             writer.add_scalar('Test acc', acc, test_step)
             # 记录学习率
             writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
             test_step += 1
-            save_model(args, model, optimizer)
+            save_model(args, model, metric_fc, optimizer)
         scheduler.step()
 
 
