@@ -94,9 +94,9 @@ def train(args):
     lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
     scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
     # 设置优化方法
-    optimizer = paddle.optimizer.Adam(parameters=model.parameters() + metric_fc.parameters(),
-                                      learning_rate=scheduler,
-                                      weight_decay=paddle.regularizer.L2Decay(1e-4))
+    optimizer = paddle.optimizer.SGD(parameters=model.parameters() + metric_fc.parameters(),
+                                     learning_rate=scheduler,
+                                     weight_decay=5e-4)
 
     # 加载预训练模型
     if args.pretrained_model is not None:
