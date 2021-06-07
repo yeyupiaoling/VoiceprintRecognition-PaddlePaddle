@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
-add_arg('num_workers',      int,    8,                        '读取数据的线程数量')
+add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-1,                     '初始学习率的大小')
@@ -89,14 +89,13 @@ def train(args):
     model = paddle.DataParallel(model)
     metric_fc = paddle.DataParallel(metric_fc)
 
-    # 分段学习率
-    boundaries = [10, 30, 70, 100]
-    lr = [0.1 ** l * args.learning_rate for l in range(len(boundaries) + 1)]
-    scheduler = paddle.optimizer.lr.PiecewiseDecay(boundaries=boundaries, values=lr, verbose=True)
+    # 学习率衰减
+    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
     # 设置优化方法
-    optimizer = paddle.optimizer.SGD(parameters=model.parameters() + metric_fc.parameters(),
-                                     learning_rate=scheduler,
-                                     weight_decay=5e-4)
+    optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
+                                          learning_rate=scheduler,
+                                          momentum=0.9,
+                                          weight_decay=paddle.regularizer.L2Decay(5e-4))
 
     # 加载预训练模型
     if args.pretrained_model is not None:
