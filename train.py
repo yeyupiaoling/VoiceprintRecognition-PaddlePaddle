@@ -1,6 +1,7 @@
 import argparse
 import functools
 import os
+import re
 import shutil
 from datetime import datetime
 
@@ -17,7 +18,7 @@ from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
-add_arg('gpu',              str,    '0,1',                    '训练使用的GPU序号')
+add_arg('gpus',             str,    '0,1',                    '训练使用的GPU序号，使用英文逗号,隔开，如：0,1')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    120,                      '训练的轮数')
@@ -27,7 +28,7 @@ add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的�
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model',       str,    'models/',                '模型保存的路径')
-add_arg('resume',           str,    None,                     '恢复训练，当为None则不使用预训练模型，使用恢复训练模型最好同时也改学习率')
+add_arg('resume',           str,    None,                     '恢复训练，当为None则不使用恢复模型')
 add_arg('pretrained_model', str,    None,                     '预训练模型的路径，当为None则不使用预训练模型')
 args = parser.parse_args()
 
@@ -48,17 +49,22 @@ def test(model, metric_fc, test_loader):
 
 
 # 保存模型
-def save_model(args, model, metric_fc, optimizer):
+def save_model(args, epoch, model, metric_fc, optimizer):
     input_shape = eval(args.input_shape)
-    if not os.path.exists(os.path.join(args.save_model, 'params')):
-        os.makedirs(os.path.join(args.save_model, 'params'))
+    model_params_path = os.path.join(args.save_model, 'params', 'epoch_%d' % epoch)
+    if not os.path.exists(model_params_path):
+        os.makedirs(model_params_path)
+    # 保存模型参数
+    paddle.save(model.state_dict(), os.path.join(model_params_path, 'model.pdparams'))
+    paddle.save(metric_fc.state_dict(), os.path.join(model_params_path, 'metric_fc.pdparams'))
+    paddle.save(optimizer.state_dict(), os.path.join(model_params_path, 'optimizer.pdopt'))
+    # 删除旧的模型
+    old_model_path = os.path.join(args.save_model, 'params', 'epoch_%d' % (epoch - 3))
+    if os.path.exists(old_model_path):
+        shutil.rmtree(old_model_path)
+    # 保存预测模型
     if not os.path.exists(os.path.join(args.save_model, 'infer')):
         os.makedirs(os.path.join(args.save_model, 'infer'))
-    # 保存模型参数
-    paddle.save(model.state_dict(), os.path.join(args.save_model, 'params/model.pdparams'))
-    paddle.save(metric_fc.state_dict(), os.path.join(args.save_model, 'params/metric_fc.pdparams'))
-    paddle.save(optimizer.state_dict(), os.path.join(args.save_model, 'params/optimizer.pdopt'))
-    # 保存预测模型
     paddle.jit.save(layer=model,
                     path=os.path.join(args.save_model, 'infer/model'),
                     input_spec=[InputSpec(shape=[input_shape[0], input_shape[1], input_shape[2], input_shape[3]], dtype='float32')])
@@ -66,7 +72,8 @@ def save_model(args, model, metric_fc, optimizer):
 
 def train(args):
     # 设置支持多卡训练
-    dist.init_parallel_env()
+    if len(args.gpus.split(',')) > 1:
+        dist.init_parallel_env()
     if dist.get_rank() == 0:
         shutil.rmtree('log', ignore_errors=True)
         # 日志记录器
@@ -75,22 +82,32 @@ def train(args):
     input_shape = eval(args.input_shape)
     # 获取数据
     train_dataset = CustomDataset(args.train_list_path, model='train', spec_len=input_shape[3])
-    train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    # 设置支持多卡训练
+    if len(args.gpus.split(',')) > 1:
+        train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
+    else:
+        train_batch_sampler = paddle.io.BatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(dataset=train_dataset, batch_sampler=train_batch_sampler, num_workers=args.num_workers)
 
     test_dataset = CustomDataset(args.test_list_path, model='test', spec_len=input_shape[3])
-    test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
+    test_batch_sampler = paddle.io.BatchSampler(train_dataset, batch_size=args.batch_size)
+    test_loader = DataLoader(dataset=test_dataset, batch_sampler=test_batch_sampler, num_workers=args.num_workers)
 
     # 获取模型
     model = resnet34()
     metric_fc = ArcNet(feature_dim=512, class_dim=args.num_classes)
     if dist.get_rank() == 0:
         paddle.summary(model, input_size=input_shape)
-    # 设置支持多卡训练
-    model = paddle.DataParallel(model)
-    metric_fc = paddle.DataParallel(metric_fc)
 
+    # 设置支持多卡训练
+    if len(args.gpus.split(',')) > 1:
+        model = paddle.DataParallel(model)
+        metric_fc = paddle.DataParallel(metric_fc)
+
+    # 获取预训练的epoch数
+    last_epoch = int(re.findall(r'\d+', args.resume)[-1]) + 1 if args.resume is not None else 0
     # 学习率衰减
-    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
+    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, last_epoch=last_epoch, verbose=True)
     # 设置优化方法
     optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
                                           learning_rate=scheduler,
@@ -105,7 +122,7 @@ def train(args):
             if name in param_state_dict.keys():
                 if weight.shape != list(param_state_dict[name].shape):
                     print('{} not used, shape {} unmatched with {} in model.'.
-                            format(name, list(param_state_dict[name].shape), weight.shape))
+                          format(name, list(param_state_dict[name].shape), weight.shape))
                     param_state_dict.pop(name, None)
             else:
                 print('Lack weight: {}'.format(name))
@@ -146,17 +163,19 @@ def train(args):
         if dist.get_rank() == 0:
             acc = test(model, metric_fc, test_loader)
             print('='*70)
-            print('[%s] Test epoch %d, accuracy: %f' % (datetime.now(), epoch, acc))
+            print('[%s] Test %d, accuracy: %f' % (datetime.now(), epoch, acc))
             print('='*70)
             writer.add_scalar('Test acc', acc, test_step)
             # 记录学习率
             writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
             test_step += 1
-            save_model(args, model, metric_fc, optimizer)
+            save_model(args, epoch, model, metric_fc, optimizer)
         scheduler.step()
 
 
 if __name__ == '__main__':
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     print_arguments(args)
-    dist.spawn(train, args=(args,))
+    if len(args.gpus.split(',')) > 1:
+        dist.spawn(train, args=(args,), gpus=args.gpus)
+    else:
+        train(args)
