@@ -3,7 +3,8 @@ import functools
 import os
 import re
 import shutil
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 
 import paddle
 import paddle.distributed as dist
@@ -12,7 +13,7 @@ from paddle.metric import accuracy
 from paddle.static import InputSpec
 from visualdl import LogWriter
 from utils.resnet import resnet34
-from utils.ArcMargin import ArcNet
+from utils.metrics import ArcNet
 from utils.reader import CustomDataset
 from utils.utility import add_arguments, print_arguments
 
@@ -140,22 +141,31 @@ def train(args):
     loss = paddle.nn.CrossEntropyLoss()
     train_step = 0
     test_step = 0
+    sum_batch = len(train_loader) * (args.num_epoch - last_epoch)
     # 开始训练
     for epoch in range(args.num_epoch):
         loss_sum = []
+        accuracies = []
         for batch_id, (spec_mag, label) in enumerate(train_loader()):
+            start = time.time()
             feature = model(spec_mag)
             output = metric_fc(feature, label)
             # 计算损失值
             los = loss(output, label)
-            loss_sum.append(los)
             los.backward()
             optimizer.step()
             optimizer.clear_grad()
+            # 计算准确率
+            label = paddle.reshape(label, shape=(-1, 1))
+            acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+            accuracies.append(acc.numpy()[0])
+            loss_sum.append(los)
             # 多卡训练只使用一个进程打印
             if batch_id % 100 == 0 and dist.get_rank() == 0:
-                print('[%s] Train epoch %d, batch_id: %d, loss: %f' % (
-                    datetime.now(), epoch, batch_id, sum(loss_sum) / len(loss_sum)))
+                eta_sec = ((time.time() - start) * 1000) * (sum_batch - (epoch - last_epoch) * len(train_loader) - batch_id)
+                eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
+                print('[%s] Train epoch %d, batch: %d/%d, loss: %f, accuracy: %f, eta: %s' % (
+                    datetime.now(), epoch, batch_id, len(train_loader), sum(loss_sum) / len(loss_sum), sum(accuracies) / len(accuracies), eta_str))
                 writer.add_scalar('Train loss', los, train_step)
                 train_step += 1
                 loss_sum = []
