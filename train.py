@@ -91,7 +91,7 @@ def train(args):
     train_loader = DataLoader(dataset=train_dataset, batch_sampler=train_batch_sampler, num_workers=args.num_workers)
 
     test_dataset = CustomDataset(args.test_list_path, model='test', spec_len=input_shape[3])
-    test_batch_sampler = paddle.io.BatchSampler(train_dataset, batch_size=args.batch_size)
+    test_batch_sampler = paddle.io.BatchSampler(test_dataset, batch_size=args.batch_size)
     test_loader = DataLoader(dataset=test_dataset, batch_sampler=test_batch_sampler, num_workers=args.num_workers)
 
     # 获取模型
