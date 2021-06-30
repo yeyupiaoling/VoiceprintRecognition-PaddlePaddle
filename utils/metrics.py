@@ -9,20 +9,20 @@ class ArcNet(paddle.nn.Layer):
     Args:
         feature_dim: size of each input sample
         class_dim: size of each output sample
-        s: norm of input feature
-        m: margin
+        scale: norm of input feature
+        margin: margin
     """
 
-    def __init__(self, feature_dim, class_dim, s=64.0, m=0.50):
+    def __init__(self, feature_dim, class_dim, scale=64.0, margin=0.50):
         super(ArcNet, self).__init__()
         self.weight = paddle.create_parameter([feature_dim, class_dim], dtype='float32', attr=XavierUniform())
         self.class_dim = class_dim
-        self.m = m
-        self.s = s
-        self.cos_m = math.cos(m)
-        self.sin_m = math.sin(m)
-        self.threshold = math.cos(math.pi - m)
-        self.mm = self.sin_m * m
+        self.margin = margin
+        self.scale = scale
+        self.cos_m = math.cos(margin)
+        self.sin_m = math.sin(margin)
+        self.threshold = math.cos(math.pi - margin)
+        self.mm = self.sin_m * margin
 
     def forward(self, feature, label):
         cos_theta = paddle.mm(F.normalize(feature, axis=1), F.normalize(self.weight, axis=0))
@@ -30,8 +30,8 @@ class ArcNet(paddle.nn.Layer):
         cos_theta_m = cos_theta * self.cos_m - sin_theta * self.sin_m
         cos_theta_m = paddle.where(cos_theta > self.threshold, cos_theta_m, cos_theta - self.mm)
         one_hot = paddle.nn.functional.one_hot(label, self.class_dim)
-        output = (one_hot * cos_theta_m) + (paddle.abs((1.0 - one_hot)) * cos_theta)
-        output *= self.s
+        output = paddle.where(one_hot == 1., cos_theta_m, cos_theta)
+        output *= self.scale
         # 简单的分类方法，学习率需要设置为0.1
         # cosine = self.cosine_sim(feature, self.weight)
         # one_hot = paddle.nn.functional.one_hot(label, self.class_dim)

@@ -19,10 +19,10 @@ from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
-add_arg('gpus',             str,    '0,1',                    '训练使用的GPU序号，使用英文逗号,隔开，如：0,1')
+add_arg('gpus',             str,    '0',                      '训练使用的GPU序号，使用英文逗号,隔开，如：0,1')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
-add_arg('num_epoch',        int,    120,                      '训练的轮数')
+add_arg('num_epoch',        int,    50,                       '训练的轮数')
 add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
@@ -143,7 +143,7 @@ def train(args):
     test_step = 0
     sum_batch = len(train_loader) * (args.num_epoch - last_epoch)
     # 开始训练
-    for epoch in range(args.num_epoch):
+    for epoch in range(last_epoch, args.num_epoch):
         loss_sum = []
         accuracies = []
         for batch_id, (spec_mag, label) in enumerate(train_loader()):
@@ -188,4 +188,5 @@ if __name__ == '__main__':
     if len(args.gpus.split(',')) > 1:
         dist.spawn(train, args=(args,), gpus=args.gpus)
     else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
         train(args)
