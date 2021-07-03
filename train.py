@@ -186,7 +186,7 @@ def train(args):
 if __name__ == '__main__':
     print_arguments(args)
     if len(args.gpus.split(',')) > 1:
-        dist.spawn(train, args=(args,), gpus=args.gpus)
+        dist.spawn(train, args=(args,), gpus=args.gpus, nprocs=len(args.gpus.split(',')))
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
         train(args)

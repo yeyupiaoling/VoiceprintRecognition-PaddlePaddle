@@ -1,5 +1,5 @@
 # 前言
-本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，首先你需要熟悉音频分类，没有了解的可以查看这篇文章[《基于PaddlePaddle实现声音分类》](https://blog.doiduoyi.com/articles/1587999549174.html) 。基于这个知识基础之上，我们训练一个声纹识别模型，通过这个模型我们可以识别说话的人是谁，可以应用在一些需要音频验证的项目。
+本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，本项目参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
 
 使用环境：
 
@@ -9,7 +9,7 @@
 # 模型下载
 | 数据集 | 准确率 | 下载地址 |
 | :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 训练中 | [训练中]() |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 0.999950 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
 
 # 安装环境
 1. 安装PaddlePaddle的GPU版本，如果已经安装过PaddlePaddle，测无需再次安装。
@@ -58,12 +58,46 @@ python train.py
 
 训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
 
+# 评估模型
+训练结束之后会保存预测模型，我们用预测模型来预测测试集中的音频特征，然后使用音频特征进行两两对比，阈值从0到1,步长为0.01进行控制，找到最佳的阈值并计算准确率。
+```shell
+python eval.py
+```
+
+输出类似如下：
+```shell
+-----------  Configuration Arguments -----------
+input_shape: (1, 257, 257)
+list_path: dataset/test_list.txt
+model_path: models/infer/model
+------------------------------------------------
+
+开始提取全部的音频特征...
+100%|█████████████████████████████████████████████████████| 5332/5332 [01:09<00:00, 77.06it/s]
+开始两两对比音频特征...
+100%|█████████████████████████████████████████████████████| 5332/5332 [01:43<00:00, 51.62it/s]
+100%|█████████████████████████████████████████████████████| 100/100 [00:03<00:00, 28.04it/s]
+当阈值为0.700000, 准确率最大，准确率为：0.999950
+```
+
 # 声纹对比
 下面开始实现声纹对比，创建`infer_contrast.py`程序，编写`infer()`函数，在编写模型的时候，模型是有两个输出的，第一个是模型的分类输出，第二个是音频特征输出。所以在这里要输出的是音频的特征值，有了音频的特征值就可以做声纹识别了。我们输入两个语音，通过预测函数获取他们的特征数据，使用这个特征数据可以求他们的对角余弦值，得到的结果可以作为他们相识度。对于这个相识度的阈值`threshold`，读者可以根据自己项目的准确度要求进行修改。
 ```shell
 python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 ```
 
+输出类似如下：
+```
+-----------  Configuration Arguments -----------
+audio_path1: audio/a_1.wav
+audio_path2: audio/b_2.wav
+input_shape: (1, 257, 257)
+model_path: models/infer/model
+threshold: 0.7
+------------------------------------------------
+
+audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：0.020499
+```
 
 # 声纹识别
 在上面的声纹对比的基础上，我们创建`infer_recognition.py`实现声纹识别。同样是使用上面声纹对比的`infer()`预测函数，通过这两个同样获取语音的特征数据。 不同的是笔者增加了`load_audio_db()`和`register()`，以及`recognition()`，第一个函数是加载声纹库中的语音数据，这些音频就是相当于已经注册的用户，他们注册的语音数据会存放在这里，如果有用户需要通过声纹登录，就需要拿到用户的语音和语音库中的语音进行声纹对比，如果对比成功，那就相当于登录成功并且获取用户注册时的信息数据。第二个函数`register()`其实就是把录音保存在声纹库中，同时获取该音频的特征添加到待对比的数据特征中。最后`recognition()`函数中，这个函数就是将输入的语音和语音库中的语音一一对比。
@@ -71,3 +105,30 @@ python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 ```shell
 python infer_recognition.py
 ```
+
+输出类似如下：
+```
+-----------  Configuration Arguments -----------
+audio_db: audio_db
+input_shape: (1, 257, 257)
+model_path: models/infer/model
+threshold: 0.7
+------------------------------------------------
+
+Loaded 李达康 audio.
+Loaded 沙瑞金 audio.
+请选择功能，0为注册音频到声纹库，1为执行声纹识别：0
+按下回车键开机录音，录音3秒中：
+开始录音......
+录音已结束!
+请输入该音频用户的名称：夜雨飘零
+请选择功能，0为注册音频到声纹库，1为执行声纹识别：1
+按下回车键开机录音，录音3秒中：
+开始录音......
+录音已结束!
+识别说话的为：夜雨飘零，相似度为：0.920434
+```
+
+# 其他版本
+ - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
+ - Pytorch：[VoiceprintRecognition_Pytorch](https://github.com/yeyupiaoling/VoiceprintRecognition_Pytorch)
