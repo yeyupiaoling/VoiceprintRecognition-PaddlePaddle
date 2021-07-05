@@ -105,10 +105,10 @@ def train(args):
         model = paddle.DataParallel(model)
         metric_fc = paddle.DataParallel(metric_fc)
 
-    # 获取预训练的epoch数
-    last_epoch = int(re.findall(r'\d+', args.resume)[-1]) + 1 if args.resume is not None else 0
+    # 初始化epoch数
+    last_epoch = 0
     # 学习率衰减
-    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, last_epoch=last_epoch, verbose=True)
+    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
     # 设置优化方法
     optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
                                           learning_rate=scheduler,
@@ -134,7 +134,10 @@ def train(args):
     if args.resume is not None:
         model.set_state_dict(paddle.load(os.path.join(args.resume, 'model.pdparams')))
         metric_fc.set_state_dict(paddle.load(os.path.join(args.resume, 'metric_fc.pdparams')))
-        optimizer.set_state_dict(paddle.load(os.path.join(args.resume, 'optimizer.pdopt')))
+        optimizer_state = paddle.load(os.path.join(args.resume, 'optimizer.pdopt'))
+        optimizer.set_state_dict(optimizer_state)
+        # 获取预训练的epoch数
+        last_epoch = optimizer_state['LR_Scheduler']['last_epoch']
         print('成功加载模型参数和优化方法参数')
 
     # 获取损失函数
