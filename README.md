@@ -7,9 +7,9 @@
  - PaddlePaddle 2.1.0
 
 # 模型下载
-| 数据集 | 准确率 | 下载地址 |
-| :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/KuangDD/zhvoice) | 0.999950 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
+| 数据集 | 类别数量 | 准确率 | 下载地址 |
+| :---: | :---: | :---: | :---: |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice)| 3242  | 0.999950 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
 
 # 安装环境
 1. 安装PaddlePaddle的GPU版本，如果已经安装过PaddlePaddle，测无需再次安装。
@@ -32,6 +32,19 @@ pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 在`create_data.py`写下以下代码，因为[中文语音语料数据集](https://github.com/KuangDD/zhvoice) 这个数据集是mp3格式的，作者发现这种格式读取速度很慢，所以笔者把全部的mp3格式的音频转换为wav格式，在创建数据列表之后，可能有些数据的是错误的，所以我们要检查一下，将错误的数据删除。执行下面程序完成数据准备。
 ```shell
 python create_data.py
+```
+
+执行上面的程序之后，会生成以下的数据格式，如果要自定义数据，参考如下数据列表，前面是音频的相对路径，后面的是该音频对应的说话人的标签，就跟分类一样。
+```
+dataset/zhvoice/zhmagicdata/5_895/5_895_20170614203758.wav	3238
+dataset/zhvoice/zhmagicdata/5_895/5_895_20170614214007.wav	3238
+dataset/zhvoice/zhmagicdata/5_941/5_941_20170613151344.wav	3239
+dataset/zhvoice/zhmagicdata/5_941/5_941_20170614221329.wav	3239
+dataset/zhvoice/zhmagicdata/5_941/5_941_20170616153308.wav	3239
+dataset/zhvoice/zhmagicdata/5_968/5_968_20170614162657.wav	3240
+dataset/zhvoice/zhmagicdata/5_968/5_968_20170622194003.wav	3240
+dataset/zhvoice/zhmagicdata/5_968/5_968_20170707200554.wav	3240
+dataset/zhvoice/zhmagicdata/5_970/5_970_20170616000122.wav	3241
 ```
 
 # 数据读取
