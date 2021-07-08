@@ -144,5 +144,5 @@ Loaded 沙瑞金 audio.
 
 # 其他版本
  - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
- - Pytorch：[VoiceprintRecognition_Pytorch](https://github.com/yeyupiaoling/VoiceprintRecognition_Pytorch)
+ - Pytorch：[VoiceprintRecognition-Pytorch](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch)
  - Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
