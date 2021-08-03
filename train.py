@@ -1,7 +1,6 @@
 import argparse
 import functools
 import os
-import re
 import shutil
 import time
 from datetime import datetime, timedelta
