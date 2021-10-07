@@ -7,9 +7,10 @@
  - PaddlePaddle 2.1.0
 
 # 模型下载
-| 数据集 | 类别数量 | 准确率 | 下载地址 |
-| :---: | :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/KuangDD/zhvoice)| 3242  | 0.999950 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
+| 数据集 | 类别数量 | 模型下载地址 |
+| :---: | :---: | :---: |
+| [中文语音语料数据集](https://github.com/KuangDD/zhvoice)| 3242 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
+| 更大的数据集 | 6235 | [点击下载](https://download.csdn.net/download/qq_33200967/29170663) |
 
 # 安装环境
 1. 安装PaddlePaddle的GPU版本，如果已经安装过PaddlePaddle，测无需再次安装。
