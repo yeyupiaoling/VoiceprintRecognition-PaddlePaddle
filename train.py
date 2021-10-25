@@ -22,14 +22,14 @@ add_arg('gpus',             str,    '0',                      '训练使用的GP
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    50,                       '训练的轮数')
-add_arg('num_classes',      int,    6235,                     '分类的类别数量')
+add_arg('num_classes',      int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
 add_arg('input_shape',      str,    '(None, 1, 257, 257)',    '数据输入的形状')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model',       str,    'models/',                '模型保存的路径')
 add_arg('resume',           str,    None,                     '恢复训练，当为None则不使用恢复模型')
-add_arg('pretrained_model', str,    'models/params/epoch_31',                     '预训练模型的路径，当为None则不使用预训练模型')
+add_arg('pretrained_model', str,    None,                     '预训练模型的路径，当为None则不使用预训练模型')
 args = parser.parse_args()
 
 
@@ -63,11 +63,11 @@ def save_model(args, epoch, model, metric_fc, optimizer):
     if os.path.exists(old_model_path):
         shutil.rmtree(old_model_path)
     # 保存预测模型
-    # if not os.path.exists(os.path.join(args.save_model, 'infer')):
-    #     os.makedirs(os.path.join(args.save_model, 'infer'))
-    # paddle.jit.save(layer=model,
-    #                 path=os.path.join(args.save_model, 'infer/model'),
-    #                 input_spec=[InputSpec(shape=[input_shape[0], input_shape[1], input_shape[2], input_shape[3]], dtype='float32')])
+    if not os.path.exists(os.path.join(args.save_model, 'infer')):
+        os.makedirs(os.path.join(args.save_model, 'infer'))
+    paddle.jit.save(layer=model,
+                    path=os.path.join(args.save_model, 'infer/model'),
+                    input_spec=[InputSpec(shape=[input_shape[0], input_shape[1], input_shape[2], input_shape[3]], dtype='float32')])
 
 
 def train(args):
@@ -107,20 +107,12 @@ def train(args):
     # 初始化epoch数
     last_epoch = 0
     # 学习率衰减
-    # scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
-    # # 设置优化方法
-    # optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
-    #                                       learning_rate=scheduler,
-    #                                       momentum=0.9,
-    #                                       weight_decay=paddle.regularizer.L2Decay(5e-4))
-
-
-    # 学习率衰减
-    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=1, gamma=0.83, verbose=True)
+    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
     # 设置优化方法
-    optimizer = paddle.optimizer.Adam(parameters=model.parameters() + metric_fc.parameters(),
-                                      learning_rate=scheduler,
-                                      weight_decay=paddle.regularizer.L2Decay(5e-4))
+    optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
+                                          learning_rate=scheduler,
+                                          momentum=0.9,
+                                          weight_decay=paddle.regularizer.L2Decay(5e-4))
 
     # 加载预训练模型
     if args.pretrained_model is not None:
@@ -156,8 +148,8 @@ def train(args):
     for epoch in range(last_epoch, args.num_epoch):
         loss_sum = []
         accuracies = []
-        start = time.time()
         for batch_id, (spec_mag, label) in enumerate(train_loader()):
+            start = time.time()
             feature = model(spec_mag)
             output = metric_fc(feature, label)
             # 计算损失值
@@ -179,7 +171,6 @@ def train(args):
                 writer.add_scalar('Train loss', los, train_step)
                 train_step += 1
                 loss_sum = []
-            start = time.time()
         # 多卡训练只使用一个进程执行评估和保存模型
         if dist.get_rank() == 0:
             acc = test(model, metric_fc, test_loader)
