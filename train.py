@@ -6,19 +6,18 @@ import time
 from datetime import datetime, timedelta
 
 import paddle
-import paddle.distributed as dist
+from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
-from paddle.static import InputSpec
 from visualdl import LogWriter
-from utils.resnet import resnet34
-from utils.metrics import ArcNet
+
+from utils.arcmargin import ArcNet
 from utils.reader import CustomDataset
+from utils.se_resnet_vd import SE_ResNet_vd
 from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
-add_arg('gpus',             str,    '0',                      '训练使用的GPU序号，使用英文逗号,隔开，如：0,1')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    50,                       '训练的轮数')
@@ -50,8 +49,7 @@ def test(model, metric_fc, test_loader):
 
 # 保存模型
 def save_model(args, epoch, model, metric_fc, optimizer):
-    input_shape = eval(args.input_shape)
-    model_params_path = os.path.join(args.save_model, 'params', 'epoch_%d' % epoch)
+    model_params_path = os.path.join(args.save_model, 'epoch_%d' % epoch)
     if not os.path.exists(model_params_path):
         os.makedirs(model_params_path)
     # 保存模型参数
@@ -59,23 +57,19 @@ def save_model(args, epoch, model, metric_fc, optimizer):
     paddle.save(metric_fc.state_dict(), os.path.join(model_params_path, 'metric_fc.pdparams'))
     paddle.save(optimizer.state_dict(), os.path.join(model_params_path, 'optimizer.pdopt'))
     # 删除旧的模型
-    old_model_path = os.path.join(args.save_model, 'params', 'epoch_%d' % (epoch - 3))
+    old_model_path = os.path.join(args.save_model, 'epoch_%d' % (epoch - 3))
     if os.path.exists(old_model_path):
         shutil.rmtree(old_model_path)
-    # 保存预测模型
-    if not os.path.exists(os.path.join(args.save_model, 'infer')):
-        os.makedirs(os.path.join(args.save_model, 'infer'))
-    paddle.jit.save(layer=model,
-                    path=os.path.join(args.save_model, 'infer/model'),
-                    input_spec=[InputSpec(shape=[input_shape[0], input_shape[1], input_shape[2], input_shape[3]], dtype='float32')])
 
 
 def train(args):
-    # 设置支持多卡训练
-    if len(args.gpus.split(',')) > 1:
-        dist.init_parallel_env()
-    if dist.get_rank() == 0:
-        shutil.rmtree('log', ignore_errors=True)
+    # 获取有多少张显卡训练
+    nranks = paddle.distributed.get_world_size()
+    local_rank = paddle.distributed.get_rank()
+    if nranks > 1:
+        # 初始化Fleet环境
+        fleet.init(is_collective=True)
+    if local_rank == 0:
         # 日志记录器
         writer = LogWriter(logdir='log')
     # 数据输入的形状
@@ -83,7 +77,7 @@ def train(args):
     # 获取数据
     train_dataset = CustomDataset(args.train_list_path, model='train', spec_len=input_shape[3])
     # 设置支持多卡训练
-    if len(args.gpus.split(',')) > 1:
+    if nranks > 1:
         train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
     else:
         train_batch_sampler = paddle.io.BatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
@@ -94,25 +88,25 @@ def train(args):
     test_loader = DataLoader(dataset=test_dataset, batch_sampler=test_batch_sampler, num_workers=args.num_workers)
 
     # 获取模型
-    model = resnet34()
-    metric_fc = ArcNet(feature_dim=512, class_dim=args.num_classes)
-    if dist.get_rank() == 0:
+    model = SE_ResNet_vd()
+    metric_fc = ArcNet(feature_dim=model.pool2d_avg_channels, class_dim=args.num_classes)
+    if local_rank == 0:
         paddle.summary(model, input_size=input_shape)
 
     # 设置支持多卡训练
-    if len(args.gpus.split(',')) > 1:
+    if nranks > 1:
         model = paddle.DataParallel(model)
         metric_fc = paddle.DataParallel(metric_fc)
 
     # 初始化epoch数
     last_epoch = 0
     # 学习率衰减
-    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=10, gamma=0.1, verbose=True)
+    scheduler = paddle.optimizer.lr.StepDecay(learning_rate=args.learning_rate, step_size=1, gamma=0.8)
     # 设置优化方法
     optimizer = paddle.optimizer.Momentum(parameters=model.parameters() + metric_fc.parameters(),
                                           learning_rate=scheduler,
                                           momentum=0.9,
-                                          weight_decay=paddle.regularizer.L2Decay(5e-4))
+                                          weight_decay=paddle.regularizer.L2Decay(1e-6))
 
     # 加载预训练模型
     if args.pretrained_model is not None:
@@ -148,8 +142,8 @@ def train(args):
     for epoch in range(last_epoch, args.num_epoch):
         loss_sum = []
         accuracies = []
+        start = time.time()
         for batch_id, (spec_mag, label) in enumerate(train_loader()):
-            start = time.time()
             feature = model(spec_mag)
             output = metric_fc(feature, label)
             # 计算损失值
@@ -163,16 +157,17 @@ def train(args):
             accuracies.append(acc.numpy()[0])
             loss_sum.append(los)
             # 多卡训练只使用一个进程打印
-            if batch_id % 100 == 0 and dist.get_rank() == 0:
+            if batch_id % 100 == 0 and local_rank == 0:
                 eta_sec = ((time.time() - start) * 1000) * (sum_batch - (epoch - last_epoch) * len(train_loader) - batch_id)
                 eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
-                print('[%s] Train epoch %d, batch: %d/%d, loss: %f, accuracy: %f, eta: %s' % (
-                    datetime.now(), epoch, batch_id, len(train_loader), sum(loss_sum) / len(loss_sum), sum(accuracies) / len(accuracies), eta_str))
+                print('[%s] Train epoch %d, batch: %d/%d, loss: %f, accuracy: %f, lr: %.8f, eta: %s' % (
+                    datetime.now(), epoch, batch_id, len(train_loader), sum(loss_sum) / len(loss_sum), sum(accuracies) / len(accuracies), scheduler.get_lr(), eta_str))
                 writer.add_scalar('Train loss', los, train_step)
                 train_step += 1
                 loss_sum = []
+            start = time.time()
         # 多卡训练只使用一个进程执行评估和保存模型
-        if dist.get_rank() == 0:
+        if local_rank == 0:
             acc = test(model, metric_fc, test_loader)
             print('='*70)
             print('[%s] Test %d, accuracy: %f' % (datetime.now(), epoch, acc))
@@ -187,8 +182,4 @@ def train(args):
 
 if __name__ == '__main__':
     print_arguments(args)
-    if len(args.gpus.split(',')) > 1:
-        dist.spawn(train, args=(args,), gpus=args.gpus, nprocs=len(args.gpus.split(',')))
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-        train(args)
+    train(args)
