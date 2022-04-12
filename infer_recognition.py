@@ -12,9 +12,9 @@ from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
-add_arg('input_shape',      str,    '(1, 257, 257)',          '数据输入的形状')
 add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
 add_arg('audio_db',         str,    'audio_db',               '音频库的路径')
+add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
 add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
 args = parser.parse_args()
 
@@ -30,12 +30,12 @@ person_name = []
 
 # 执行识别
 def infer(audio_path):
-    input_shape = eval(args.input_shape)
-    data = load_audio(audio_path, mode='infer', spec_len=input_shape[2])
+    data = load_audio(audio_path, mode='infer', feature_method=args.feature_method)
     data = data[np.newaxis, :]
     data = paddle.to_tensor(data, dtype='float32')
+    data_length = paddle.to_tensor(data.shape[-1], dtype='float32')
     # 执行预测
-    feature = model(data)
+    feature = model(data, data_length)
     return feature.numpy()
 
 
@@ -48,7 +48,7 @@ def load_audio_db(audio_db_path):
         feature = infer(path)[0]
         person_name.append(name)
         person_feature.append(feature)
-        print("Loaded %s audio." % name)
+        print(f"Loaded {name} audio.")
 
 
 # 声纹识别
@@ -88,7 +88,7 @@ if __name__ == '__main__':
             audio_path = record_audio.record()
             name, p = recognition(audio_path)
             if p > args.threshold:
-                print("识别说话的为：%s，相似度为：%f" % (name, p))
+                print(f"识别说话的为：{name}，相似度为：{p}")
             else:
                 print("音频库没有该用户的语音")
         else:

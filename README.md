@@ -1,25 +1,25 @@
 # 前言
-本章介绍如何使用PaddlePaddle实现简单的声纹识别模型，本项目参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
+此版本为新版本，如想使用使用旧版本，请转到[V1.0版本](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/V1.0) ，本版本使用了EcapaTdnn模型等多个模型，和多种数据预处理方法，参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
 
 使用环境：
 
  - Python 3.7
- - PaddlePaddle 2.1.0
+ - PaddlePaddle 2.2.2
 
 # 模型下载
-| 数据集 | 类别数量 | 模型下载地址 |
-| :---: | :---: | :---: |
-| [中文语音语料数据集](https://github.com/fighting41love/zhvoice)| 3242 | [点击下载](https://download.csdn.net/download/qq_33200967/18383627) |
-| 更大的数据集 | 6235 | [点击下载](https://download.csdn.net/download/qq_33200967/29170663) |
+|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 模型下载地址  |
+|:---------:|:--------------:|:------------------------------------------------------:|:----:|:-------:|
+| EcapaTdnn | melspectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242 | [开发中]() |
+| EcapaTdnn | melspectrogram |                         更大的数据集                         | 6235 | [开发中]() |
 
 
 # 安装环境
 1. 安装PaddlePaddle的GPU版本，如果已经安装过PaddlePaddle，测无需再次安装。
 ```shell
-pip install paddlepaddle-gpu==2.1.0 -i https://mirrors.aliyun.com/pypi/simple/
+pip install paddlepaddle-gpu==2.2.2 -i https://mirrors.aliyun.com/pypi/simple/
 ```
 
-2. 安装其他依赖库，命令如下。
+2. 安装其他依赖库，命令如下，注意librosa的版本是0.9.1，旧版本的梅尔频谱计算方式不一样。
 ```shell
 pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 ```
@@ -74,16 +74,15 @@ dataset/zhvoice/zhmagicdata/5_970/5_970_20170616000122.wav	3241
 ```
 
 # 数据读取
-有了上面创建的数据列表和均值标准值，就可以用于训练读取。主要是把语音数据转换短时傅里叶变换的幅度谱，使用librosa可以很方便计算音频的特征，如梅尔频谱的API为`librosa.feature.melspectrogram()`，输出的是numpy值，可以直接用PaddlePaddle训练和预测。跟梅尔频谱同样很重要的梅尔倒谱（MFCCs）更多用于语音识别中，对应的API为`librosa.feature.mfcc()`。在本项目中使用的API分别是`librosa.stft()`和`librosa.magphase()`。在训练时，使用了数据增强，如随机翻转拼接，随机裁剪。经过处理，最终得到一个`257*257`的短时傅里叶变换的幅度谱。
+使用librosa可以很方便计算音频的特征，如梅尔频谱的API为`librosa.feature.melspectrogram()`，输出的是numpy值，可以直接用PaddlePaddle训练和预测。跟梅尔频谱同样很重要的梅尔倒谱（MFCCs）更多用于语音识别中，对应的API为`librosa.feature.mfcc()`。声谱图分别使用`librosa.stft()`和`librosa.magphase()`实现。
 ```python
-wav, sr_ret = librosa.load(audio_path, sr=sr)
-linear = librosa.stft(extended_wav, n_fft=n_fft, win_length=win_length, hop_length=hop_length)
-mag, _ = librosa.magphase(linear)
-freq, freq_time = mag.shape
-spec_mag = mag[:, :spec_len]
-mean = np.mean(spec_mag, 0, keepdims=True)
-std = np.std(spec_mag, 0, keepdims=True)
-spec_mag = (spec_mag - mean) / (std + 1e-5)
+if feature_method == 'melspectrogram':
+    # 计算梅尔频谱
+    features = librosa.feature.melspectrogram(y=wav, sr=sr, n_fft=400, n_mels=80, hop_length=160, win_length=400)
+elif feature_method == 'spectrogram':
+    # 计算声谱图
+    linear = librosa.stft(wav, n_fft=400, win_length=400, hop_length=160)
+    features, _ = librosa.magphase(linear)
 ```
 
 
@@ -107,7 +106,7 @@ python eval.py
 输出类似如下：
 ```shell
 -----------  Configuration Arguments -----------
-input_shape: (1, 257, 257)
+feature_method: melspectrogram
 list_path: dataset/test_list.txt
 model_path: models/infer/model
 ------------------------------------------------
@@ -143,7 +142,7 @@ python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 -----------  Configuration Arguments -----------
 audio_path1: audio/a_1.wav
 audio_path2: audio/b_2.wav
-input_shape: (1, 257, 257)
+feature_method: melspectrogram
 model_path: models/infer/model
 threshold: 0.7
 ------------------------------------------------
@@ -162,7 +161,7 @@ python infer_recognition.py
 ```
 -----------  Configuration Arguments -----------
 audio_db: audio_db
-input_shape: (1, 257, 257)
+feature_method: melspectrogram
 model_path: models/infer/model
 threshold: 0.7
 ------------------------------------------------
@@ -185,3 +184,8 @@ Loaded 沙瑞金 audio.
  - Tensorflow：[VoiceprintRecognition-Tensorflow](https://github.com/yeyupiaoling/VoiceprintRecognition-Tensorflow)
  - Pytorch：[VoiceprintRecognition-Pytorch](https://github.com/yeyupiaoling/VoiceprintRecognition-Pytorch)
  - Keras：[VoiceprintRecognition-Keras](https://github.com/yeyupiaoling/VoiceprintRecognition-Keras)
+
+
+# 参考资料
+1. https://github.com/PaddlePaddle/PaddleSpeech
+2. https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets
