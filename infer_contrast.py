@@ -6,7 +6,7 @@ import numpy as np
 import paddle
 
 from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
-from utils.reader import load_audio, CustomDataset
+from data_utils.reader import load_audio, CustomDataset
 from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)

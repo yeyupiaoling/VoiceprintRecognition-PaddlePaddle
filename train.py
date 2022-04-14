@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 
 import paddle
+import yaml
 from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
@@ -12,7 +13,11 @@ from visualdl import LogWriter
 
 from modules.loss import AAMLoss
 from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
-from utils.reader import CustomDataset, collate_fn
+from data_utils.reader import CustomDataset, collate_fn
+from data_utils.noise_perturb import NoisePerturbAugmentor
+from data_utils.speed_perturb import SpeedPerturbAugmentor
+from data_utils.volume_perturb import VolumePerturbAugmentor
+from data_utils.spec_augment import SpecAugmentor
 from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -28,6 +33,7 @@ add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的�
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model_dir',   str,    'models/',                '模型保存的路径')
 add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
+add_arg('augment_conf_path',str,    'configs/augment.yml',    '数据增强的配置文件，为json格式')
 add_arg('resume',           str,    None,                     '恢复训练的模型文件夹，当为None则不使用恢复模型')
 add_arg('pretrained_model', str,    None,                     '预训练模型的模型文件夹，当为None则不使用预训练模型')
 args = parser.parse_args()
@@ -58,12 +64,23 @@ def train(args):
     if local_rank == 0:
         # 日志记录器
         writer = LogWriter(logdir='log')
+    # 获取数据增强器
+    augmentors = None
+    if args.augment_conf_path is not None:
+        augmentors = {}
+        with open(args.augment_conf_path, encoding="utf-8") as fp:
+            configs = yaml.load(fp, Loader=yaml.FullLoader)
+        augmentors['noise'] = NoisePerturbAugmentor(**configs['noise'])
+        augmentors['speed'] = SpeedPerturbAugmentor(**configs['speed'])
+        augmentors['volume'] = VolumePerturbAugmentor(**configs['volume'])
+        augmentors['specaug'] = SpecAugmentor(**configs['specaug'])
     # 获取数据
     train_dataset = CustomDataset(args.train_list_path,
                                   feature_method=args.feature_method,
                                   mode='train',
                                   sr=16000,
-                                  chunk_duration=3)
+                                  chunk_duration=3,
+                                  augmentors=augmentors)
     # 设置支持多卡训练
     if nranks > 1:
         train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)

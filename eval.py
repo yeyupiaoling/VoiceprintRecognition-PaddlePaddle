@@ -8,7 +8,7 @@ from paddle.io import DataLoader
 from tqdm import tqdm
 
 from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
-from utils.reader import CustomDataset, collate_fn
+from data_utils.reader import CustomDataset, collate_fn
 from utils.utility import add_arguments, print_arguments, cal_accuracy_threshold
 
 parser = argparse.ArgumentParser(description=__doc__)

@@ -6,8 +6,8 @@ import shutil
 import numpy as np
 import paddle
 
-from modules.model import EcapaTdnn, SpeakerIdetification
-from utils.reader import load_audio, CustomDataset
+from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
+from data_utils.reader import load_audio, CustomDataset
 from utils.record import RecordAudio
 from utils.utility import add_arguments, print_arguments
 

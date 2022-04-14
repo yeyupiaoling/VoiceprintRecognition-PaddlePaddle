@@ -4,7 +4,7 @@ import os
 from pydub import AudioSegment
 from tqdm import tqdm
 
-from utils.reader import load_audio
+from data_utils.reader import load_audio
 
 
 # 生成数据列表

@@ -12,17 +12,29 @@ from paddle.io import Dataset
 
 
 # 加载并预处理音频
-def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=16000, chunk_duration=3):
+def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=16000, chunk_duration=3, augmentors=None):
     # 读取音频数据
     wav, sr_ret = librosa.load(audio_path, sr=sr)
-    # 随机裁剪
     if mode == 'train':
+        # 随机裁剪
         num_wav_samples = wav.shape[0]
+        # 数据太短不利于训练
+        if num_wav_samples < sr:
+            raise Exception(f'音频长度小于1s，实际长度为：{(num_wav_samples/sr):.2f}s')
         num_chunk_samples = int(chunk_duration * sr)
         if num_wav_samples > num_chunk_samples + 1:
             start = random.randint(0, num_wav_samples - num_chunk_samples - 1)
             stop = start + num_chunk_samples
             wav = wav[start:stop]
+            # 对每次都满长度的再次裁剪
+            if random.random() > 0.5:
+                wav[:random.randint(1, sr // 2)] = 0
+                wav = wav[:-random.randint(1, sr // 2)]
+        # 数据增强
+        if augmentors is not None:
+            for key, augmentor in augmentors.items():
+                if key == 'specaug':continue
+                wav = augmentor(wav)
     elif mode == 'eval':
         # 为避免显存溢出，只裁剪指定长度
         num_wav_samples = wav.shape[0]
@@ -40,6 +52,12 @@ def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=160
     else:
         raise Exception(f'预处理方法 {feature_method} 不存在！')
     features = librosa.power_to_db(features, ref=1.0, amin=1e-10, top_db=None)
+    # 数据增强
+    if mode == 'train' and augmentors is not None:
+        for key, augmentor in augmentors.items():
+            if key == 'specaug':
+                features = augmentor(features)
+    # 归一化
     mean = np.mean(features, 0, keepdims=True)
     std = np.std(features, 0, keepdims=True)
     features = (features - mean) / (std + 1e-5)
@@ -48,7 +66,7 @@ def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=160
 
 # 数据加载器
 class CustomDataset(Dataset):
-    def __init__(self, data_list_path, feature_method='melspectrogram', mode='train', sr=16000, chunk_duration=3):
+    def __init__(self, data_list_path, feature_method='melspectrogram', mode='train', sr=16000, chunk_duration=3, augmentors=None):
         super(CustomDataset, self).__init__()
         if data_list_path is not None:
             with open(data_list_path, 'r') as f:
@@ -57,13 +75,14 @@ class CustomDataset(Dataset):
         self.mode = mode
         self.sr = sr
         self.chunk_duration = chunk_duration
+        self.augmentors = augmentors
 
     def __getitem__(self, idx):
         try:
             audio_path, label = self.lines[idx].replace('\n', '').split('\t')
             # 加载并预处理音频
-            features = load_audio(audio_path, feature_method=self.feature_method,
-                                  mode=self.mode, sr=self.sr, chunk_duration=self.chunk_duration)
+            features = load_audio(audio_path, feature_method=self.feature_method, mode=self.mode, sr=self.sr,
+                                  chunk_duration=self.chunk_duration, augmentors=self.augmentors)
             return features, np.array(int(label), dtype=np.int64)
         except Exception as ex:
             print(f"[{datetime.now()}] 数据: {self.lines[idx]} 出错，错误信息: {ex}", file=sys.stderr)
