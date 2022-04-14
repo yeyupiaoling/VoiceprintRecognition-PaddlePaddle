@@ -1,11 +1,9 @@
 import argparse
 import functools
 import os
-import shutil
 import time
 from datetime import datetime, timedelta
 
-import numpy as np
 import paddle
 from paddle.distributed import fleet
 from paddle.io import DataLoader
@@ -13,12 +11,13 @@ from paddle.metric import accuracy
 from visualdl import LogWriter
 
 from modules.loss import AAMLoss
-from modules.model import EcapaTdnn, SpeakerIdetification
+from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
 from utils.reader import CustomDataset, collate_fn
-from utils.utility import add_arguments, print_arguments, cal_accuracy
+from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模型')
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    50,                       '训练的轮数')
@@ -27,19 +26,19 @@ add_arg('learning_rate',    float,  1e-3,                     '初始学习率�
 add_arg('threshold',        float,  0.5,                      '评估的阈值')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
-add_arg('save_model',       str,    'models/',                '模型保存的路径')
+add_arg('save_model_dir',   str,    'models/',                '模型保存的路径')
 add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
-add_arg('resume',           str,    None,                     '恢复训练，当为None则不使用恢复模型')
-add_arg('pretrained_model', str,    None,                     '预训练模型的路径，当为None则不使用预训练模型')
+add_arg('resume',           str,    None,                     '恢复训练的模型文件夹，当为None则不使用恢复模型')
+add_arg('pretrained_model', str,    None,                     '预训练模型的模型文件夹，当为None则不使用预训练模型')
 args = parser.parse_args()
 
 
 # 评估模型
 @paddle.no_grad()
-def evaluate(model, test_loader):
+def evaluate(model, eval_loader):
     model.eval()
     accuracies = []
-    for batch_id, (audio, label, audio_lens) in enumerate(test_loader()):
+    for batch_id, (audio, label, audio_lens) in enumerate(eval_loader()):
         output = model(audio, audio_lens)
         # 计算准确率
         label = paddle.reshape(label, shape=(-1, 1))
@@ -47,20 +46,6 @@ def evaluate(model, test_loader):
         accuracies.append(acc.numpy()[0])
     model.train()
     return sum(accuracies) / len(accuracies)
-
-
-# 保存模型
-def save_model(args, epoch, model, optimizer):
-    model_params_path = os.path.join(args.save_model, 'epoch_%d' % epoch)
-    if not os.path.exists(model_params_path):
-        os.makedirs(model_params_path)
-    # 保存模型参数
-    paddle.save(model.state_dict(), os.path.join(model_params_path, 'model.pdparams'))
-    paddle.save(optimizer.state_dict(), os.path.join(model_params_path, 'optimizer.pdopt'))
-    # 删除旧的模型
-    old_model_path = os.path.join(args.save_model, 'epoch_%d' % (epoch - 3))
-    if os.path.exists(old_model_path):
-        shutil.rmtree(old_model_path)
 
 
 def train(args):
@@ -89,19 +74,22 @@ def train(args):
                               collate_fn=collate_fn,
                               num_workers=args.num_workers)
     # 测试数据
-    test_dataset = CustomDataset(args.test_list_path,
+    eval_dataset = CustomDataset(args.test_list_path,
                                  feature_method=args.feature_method,
-                                 mode='test',
+                                 mode='eval',
                                  sr=16000,
                                  chunk_duration=3)
-    test_loader = DataLoader(dataset=test_dataset,
+    eval_loader = DataLoader(dataset=eval_dataset,
                              batch_size=args.batch_size,
                              collate_fn=collate_fn,
                              num_workers=args.num_workers)
 
     # 获取模型
-    ecapa_tdnn = EcapaTdnn(input_size=train_dataset.input_size)
-    model = SpeakerIdetification(backbone=ecapa_tdnn, num_class=args.num_speakers)
+    if args.use_model == 'ecapa_tdnn':
+        ecapa_tdnn = EcapaTdnn(input_size=train_dataset.input_size)
+        model = SpeakerIdetification(backbone=ecapa_tdnn, num_class=args.num_speakers)
+    else:
+        raise Exception(f'{args.use_model} 模型不存在！')
     if local_rank == 0:
         paddle.summary(model, input_size=(1, train_dataset.input_size, 98))
 
@@ -182,7 +170,7 @@ def train(args):
         # 多卡训练只使用一个进程执行评估和保存模型
         if local_rank == 0:
             s = time.time()
-            acc = evaluate(model, test_loader)
+            acc = evaluate(model, eval_loader)
             eta_str = str(timedelta(seconds=int(time.time() - s)))
             print('='*70)
             print(f'[{datetime.now()}] Test {epoch}, accuracy: {acc:.5f} time: {eta_str}')
@@ -191,7 +179,11 @@ def train(args):
             # 记录学习率
             writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
             test_step += 1
-            save_model(args, epoch, model, optimizer)
+            # 保存模型
+            save_path = os.path.join(args.save_model_dir, args.use_model)
+            os.makedirs(save_path, exist_ok=True)
+            paddle.save(model.state_dict(), os.path.join(save_path, 'model.pdparams'))
+            paddle.save(optimizer.state_dict(), os.path.join(save_path, 'optimizer.pdopt'))
         scheduler.step()
 
 

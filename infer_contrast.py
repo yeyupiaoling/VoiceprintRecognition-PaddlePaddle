@@ -1,25 +1,36 @@
 import argparse
 import functools
+import os
 
 import numpy as np
 import paddle
 
-from utils.reader import load_audio
+from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
+from utils.reader import load_audio, CustomDataset
 from utils.utility import add_arguments, print_arguments
 
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
+add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模型')
 add_arg('audio_path1',      str,    'audio/a_1.wav',          '预测第一个音频')
 add_arg('audio_path2',      str,    'audio/b_2.wav',          '预测第二个音频')
-add_arg('threshold',        float,   0.7,                     '判断是否为同一个人的阈值')
+add_arg('threshold',        float,   0.5,                     '判断是否为同一个人的阈值')
 add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
-add_arg('model_path',       str,    'models/infer/model',     '预测模型的路径')
+add_arg('resume',           str,    'models/',                '模型文件夹路径')
 args = parser.parse_args()
-
 print_arguments(args)
 
+dataset = CustomDataset(data_list_path=None, feature_method=args.feature_method)
+# 获取模型
+if args.use_model == 'ecapa_tdnn':
+    ecapa_tdnn = EcapaTdnn(input_size=dataset.input_size)
+    model = SpeakerIdetification(backbone=ecapa_tdnn)
+else:
+    raise Exception(f'{args.use_model} 模型不存在！')
 # 加载模型
-model = paddle.jit.load(args.model_path)
+model_path = os.path.join(args.resume, args.use_model, 'model.pdparams')
+model.set_state_dict(paddle.load(model_path))
+print(f"成功加载模型参数和优化方法参数：{model_path}")
 model.eval()
 
 
@@ -28,9 +39,9 @@ def infer(audio_path):
     data = load_audio(audio_path, mode='infer', feature_method=args.feature_method)
     data = data[np.newaxis, :]
     data = paddle.to_tensor(data, dtype='float32')
-    data_length = paddle.to_tensor(data.shape[-1], dtype='float32')
+    data_length = paddle.to_tensor([1], dtype='float32')
     # 执行预测
-    feature = model(data, data_length)
+    feature = model.backbone(data, data_length)
     return feature.numpy()
 
 

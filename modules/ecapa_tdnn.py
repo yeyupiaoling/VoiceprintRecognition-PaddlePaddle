@@ -254,7 +254,6 @@ class AttentiveStatisticsPooling(nn.Layer):
         mask = length_to_mask(lengths * L, max_len=L)
         mask = mask.unsqueeze(1)
 
-        # Expand the temporal context of the pooling layer by allowing the self-attention to look at global properties of the utterance.
         # 通过允许自我注意观察话语的全局属性，扩展汇集层的时间上下文。
         if self.global_context:
             total = mask.sum(axis=2, keepdim=True).astype('float32')
@@ -457,7 +456,7 @@ class SpeakerIdetification(nn.Layer):
     def __init__(
             self,
             backbone,
-            num_class,
+            num_class=1,
             lin_blocks=0,
             lin_neurons=192,
             dropout=0.1, ):

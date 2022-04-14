@@ -1,4 +1,10 @@
 import random
+import sys
+
+import warnings
+from datetime import datetime
+
+warnings.filterwarnings("ignore")
 
 import librosa
 import numpy as np
@@ -17,7 +23,7 @@ def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=160
             start = random.randint(0, num_wav_samples - num_chunk_samples - 1)
             stop = start + num_chunk_samples
             wav = wav[start:stop]
-    else:
+    elif mode == 'eval':
         # 为避免显存溢出，只裁剪指定长度
         num_wav_samples = wav.shape[0]
         num_chunk_samples = int(chunk_duration * sr)
@@ -53,11 +59,16 @@ class CustomDataset(Dataset):
         self.chunk_duration = chunk_duration
 
     def __getitem__(self, idx):
-        audio_path, label = self.lines[idx].replace('\n', '').split('\t')
-        # 加载并预处理音频
-        features = load_audio(audio_path, feature_method=self.feature_method,
-                              mode=self.mode, sr=self.sr, chunk_duration=self.chunk_duration)
-        return features, np.array(int(label), dtype=np.int64)
+        try:
+            audio_path, label = self.lines[idx].replace('\n', '').split('\t')
+            # 加载并预处理音频
+            features = load_audio(audio_path, feature_method=self.feature_method,
+                                  mode=self.mode, sr=self.sr, chunk_duration=self.chunk_duration)
+            return features, np.array(int(label), dtype=np.int64)
+        except Exception as ex:
+            print(f"[{datetime.now()}] 数据: {self.lines[idx]} 出错，错误信息: {ex}", file=sys.stderr)
+            rnd_idx = np.random.randint(self.__len__())
+            return self.__getitem__(rnd_idx)
 
     def __len__(self):
         return len(self.lines)
@@ -90,7 +101,7 @@ def collate_fn(batch):
         seq_length = tensor.shape[1]
         # 将数据插入都0张量中，实现了padding
         inputs[x, :, :seq_length] = tensor[:, :]
-        input_lens.append(seq_length)
+        input_lens.append(seq_length/max_audio_length)
     input_lens = np.array(input_lens, dtype='float32')
     labels = np.array(labels, dtype='int64')
     # 打乱数据
