@@ -4,17 +4,14 @@ import numpy as np
 
 
 class SpeedPerturbAugmentor(object):
-    """添加速度扰动的增强模型
+    """添加随机语速增强
 
-    See reference paper here:
-    http://www.danielpovey.com/files/2015_interspeech_augmentation.pdf
-
-    :param min_speed_rate: Lower bound of new speed rate to sample and should
-                           not be smaller than 0.9.
+    :param min_speed_rate: 新采样速率下限不应小于0.9
     :type min_speed_rate: float
-    :param max_speed_rate: Upper bound of new speed rate to sample and should
-                           not be larger than 1.1.
+    :param max_speed_rate: 新采样速率的上界不应大于1.1
     :type max_speed_rate: float
+    :param prob: 数据增强的概率
+    :type prob: float
     """
 
     def __init__(self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=3, prob=0.5):
@@ -30,16 +27,12 @@ class SpeedPerturbAugmentor(object):
             self._rates = np.linspace(self._min_speed_rate, self._max_speed_rate, self._num_rates, endpoint=True)
 
     def __call__(self, wav):
-        """Sample a new speed rate from the given range and
-        changes the speed of the given audio clip.
+        """改变音频语速
 
-        Note that this is an in-place transformation.
-
-        :param wav: Audio segment to add effects to.
-        :type wav: AudioSegment|SpeechSegment
+        :param wav: librosa 读取的数据
+        :type wav: ndarray
         """
-        if random.random() > self.prob:
-            return wav
+        if random.random() > self.prob: return wav
         if self._num_rates < 0:
             speed_rate = random.uniform(self._min_speed_rate, self._max_speed_rate)
         else:

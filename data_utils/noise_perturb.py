@@ -11,12 +11,16 @@ import librosa
 class NoisePerturbAugmentor(object):
     """用于添加背景噪声的增强模型
 
-    :param min_snr_dB: Minimal signal noise ratio, in decibels.
-    :type min_snr_dB: float
-    :param max_snr_dB: Maximal signal noise ratio, in decibels.
-    :type max_snr_dB: float
-    :param noise_path: Manifest path for noise audio data.
+    :param min_snr_dB: 最小的信噪比，以分贝为单位
+    :type min_snr_dB: int
+    :param max_snr_dB: 最大的信噪比，以分贝为单位
+    :type max_snr_dB: int
+    :param noise_path: 噪声文件夹
     :type noise_path: str
+    :param sr: 音频采样率，必须跟训练数据的一样
+    :type sr: int
+    :param prob: 数据增强的概率
+    :type prob: float
     """
 
     def __init__(self, min_snr_dB=10, max_snr_dB=30, noise_path="dataset/noise", sr=16000, prob=0.5):
@@ -38,26 +42,27 @@ class NoisePerturbAugmentor(object):
     def rms_db(wav):
         """返回以分贝为单位的音频均方根能量
 
-        :return: Root mean square energy in decibels.
+        :return: 均方根能量(分贝)
         :rtype: float
         """
         mean_square = np.mean(wav ** 2)
         return 10 * np.log10(mean_square)
 
     def __call__(self, wav):
-        """Add background noise audio.
+        """添加背景噪音音频
 
-        Note that this is an in-place transformation.
-
-        :param audio_segment: Audio segment to add effects to.
-        :type audio_segment: AudioSegmenet|SpeechSegment
+        :param wav: librosa 读取的数据
+        :type wav: ndarray
         """
         if random.random() > self.prob: return wav
+        # 如果没有噪声数据跳过
         if len(self._noise_files) == 0: return wav
-        snr_dB = random.uniform(self._min_snr_dB, self._max_snr_dB)
         noise, r = librosa.load(random.choice(self._noise_files), sr=self.sr)
+        # 噪声大小
+        snr_dB = random.uniform(self._min_snr_dB, self._max_snr_dB)
         noise_gain_db = min(self.rms_db(wav) - self.rms_db(noise) - snr_dB, 300)
         noise *= 10. ** (noise_gain_db / 20.)
+        # 合并噪声数据
         noise_new = np.zeros(wav.shape, dtype=np.float32)
         if noise.shape[0] >= wav.shape[0]:
             start = random.randint(0, noise.shape[0] - wav.shape[0])

@@ -68,6 +68,7 @@ def load_audio(audio_path, feature_method='melspectrogram', mode='train', sr=160
 class CustomDataset(Dataset):
     def __init__(self, data_list_path, feature_method='melspectrogram', mode='train', sr=16000, chunk_duration=3, augmentors=None):
         super(CustomDataset, self).__init__()
+        # 当预测时不需要获取数据
         if data_list_path is not None:
             with open(data_list_path, 'r') as f:
                 self.lines = f.readlines()
