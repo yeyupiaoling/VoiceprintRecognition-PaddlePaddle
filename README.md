@@ -85,9 +85,18 @@ elif feature_method == 'spectrogram':
     features, _ = librosa.magphase(linear)
 ```
 
+# 数据增强
+本项目提供了几种音频增强操作，分布是随机裁剪，添加背景噪声，调节语速，调节音量，和SpecAugment。其中后面4种增加的参数可以在`configs/augment.yml`修改，参数`prob`是指定该增强操作的概率，如果不想使用该增强方式，可以设置为0。要主要的是，添加背景噪声需要把多个噪声音频文件存放在`dataset/noise`，否则会跳过噪声增强
+```yaml
+noise:
+  min_snr_dB: 10
+  max_snr_dB: 30
+  noise_path: "dataset/noise"
+  prob: 0.5
+```
 
 # 训练模型
-创建`train.py`开始训练模型，使用的是经过修改过的`resnet34`模型，数据输入层设置为`[None, 1, 257, 257]`，这个大小就是短时傅里叶变换的幅度谱的shape，如果读者使用了其他的语音长度，也需要修改这个值。每训练一轮结束之后，执行一次模型评估，计算模型的准确率，以观察模型的收敛情况。同样的，每一轮训练结束保存一次模型，分别保存了可以恢复训练的模型参数，也可以作为预训练模型参数。还保存预测模型，用于之后预测。
+创建`train.py`开始训练模型，每训练一轮结束之后，执行一次模型评估，计算模型的准确率，以观察模型的收敛情况。同样的，每一轮训练结束保存一次模型，分别保存了可以恢复训练的模型参数，也可以作为预训练模型参数。以下是单卡训练和单机多卡训练的启动命令。训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
 ```shell
 # 单卡训练
 CUDA_VISIBLE_DEVICES=0 python train.py
@@ -95,7 +104,11 @@ CUDA_VISIBLE_DEVICES=0 python train.py
 python -m paddle.distributed.launch --gpus '0,1' train.py
 ```
 
-训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
+训练输出日志：
+```
+
+```
+
 
 # 评估模型
 训练结束之后会保存预测模型，我们用预测模型来预测测试集中的音频特征，然后使用音频特征进行两两对比，阈值从0到1,步长为0.01进行控制，找到最佳的阈值并计算准确率。
@@ -117,18 +130,6 @@ model_path: models/infer/model
 100%|█████████████████████████████████████████████████████| 5332/5332 [01:43<00:00, 51.62it/s]
 100%|█████████████████████████████████████████████████████| 100/100 [00:03<00:00, 28.04it/s]
 当阈值为0.700000, 准确率最大，准确率为：0.999950
-```
-
-# 导出模型
-训练完模型之后，需要导出模型才能预测，执行下面命令导出模型。
-```shell
-python export_model.py
-```
-
-输出如下：
-```shell
-[2021-11-08 22:24:25.053515] 成功加载模型参数和优化方法参数
-[2021-11-08 22:24:26.405506] 模型导出成功：models/infer/model
 ```
 
 # 声纹对比
@@ -189,3 +190,4 @@ Loaded 沙瑞金 audio.
 # 参考资料
 1. https://github.com/PaddlePaddle/PaddleSpeech
 2. https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets
+3. https://github.com/yeyupiaoling/PPASR

@@ -5,6 +5,7 @@ import os
 import numpy as np
 import paddle
 from paddle.io import DataLoader
+from paddle.metric import accuracy
 from tqdm import tqdm
 
 from modules.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
@@ -46,13 +47,20 @@ def get_all_audio_feature(list_path):
     eval_loader = DataLoader(dataset=eval_dataset,
                              batch_size=32,
                              collate_fn=collate_fn)
-
+    accuracies = []
     features, labels = None, None
     for batch_id, (audio, label, audio_lens) in tqdm(enumerate(eval_loader())):
-        feature = model.backbone(audio, audio_lens).numpy()
+        output = model.backbone(audio, audio_lens)
+        # 计算准确率
+        label = paddle.reshape(label, shape=(-1, 1))
+        acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+        accuracies.append(acc.numpy()[0])
+        # 获取特征
+        feature = output.numpy()
         features = np.concatenate((features, feature)) if features is not None else feature
         labels = np.concatenate((labels, label.numpy())) if labels is not None else label.numpy()
     labels = labels.astype(np.int32)
+    print('分类准确率为：{}'.format(sum(accuracies) / len(accuracies)))
     return features, labels
 
 
@@ -72,7 +80,7 @@ def main():
         y_true.extend(np.array(labels[i] == labels[i:]).astype(np.int32))
     print('找出最优的阈值和对应的准确率...')
     accuracy, threshold = cal_accuracy_threshold(scores, y_true)
-    print(f'当阈值为{threshold:.2f}, 准确率最大，准确率为：{accuracy:.5f}')
+    print(f'当阈值为{threshold:.2f}, 两两对比准确率最大，准确率为：{accuracy:.5f}')
 
 
 if __name__ == '__main__':

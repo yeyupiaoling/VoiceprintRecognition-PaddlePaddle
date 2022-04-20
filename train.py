@@ -26,7 +26,7 @@ add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模�
 add_arg('batch_size',       int,    32,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
 add_arg('num_epoch',        int,    50,                       '训练的轮数')
-add_arg('num_speakers',     int,    6235,                     '分类的类别数量')
+add_arg('num_speakers',     int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
 add_arg('threshold',        float,  0.5,                      '评估的阈值')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
