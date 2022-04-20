@@ -50,13 +50,13 @@ def get_all_audio_feature(list_path):
     accuracies = []
     features, labels = None, None
     for batch_id, (audio, label, audio_lens) in tqdm(enumerate(eval_loader())):
-        output = model.backbone(audio, audio_lens)
+        output = model(audio, audio_lens)
         # 计算准确率
         label = paddle.reshape(label, shape=(-1, 1))
         acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
         accuracies.append(acc.numpy()[0])
         # 获取特征
-        feature = output.numpy()
+        feature = model.backbone(audio, audio_lens).numpy()
         features = np.concatenate((features, feature)) if features is not None else feature
         labels = np.concatenate((labels, label.numpy())) if labels is not None else label.numpy()
     labels = labels.astype(np.int32)

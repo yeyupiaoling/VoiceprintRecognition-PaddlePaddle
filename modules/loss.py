@@ -44,7 +44,7 @@ class AAMLoss(nn.Layer):
         self.loss_fn = AdditiveAngularMargin(margin=margin, scale=scale, easy_margin=easy_margin)
         self.criterion = paddle.nn.KLDivLoss(reduction="sum")
 
-    def forward(self, outputs, targets, length=None):
+    def forward(self, outputs, targets):
         targets = F.one_hot(targets, outputs.shape[1])
         predictions = self.loss_fn(outputs, targets)
         predictions = F.log_softmax(predictions, axis=1)
