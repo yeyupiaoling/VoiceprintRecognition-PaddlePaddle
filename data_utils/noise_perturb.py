@@ -34,6 +34,7 @@ class NoisePerturbAugmentor(object):
     @staticmethod
     def get_noise_file(noise_path):
         noise_files = []
+        if not os.path.exists(noise_path): return noise_files
         for file in os.listdir(noise_path):
             noise_files.append(os.path.join(noise_path, file))
         return noise_files

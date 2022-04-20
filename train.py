@@ -28,7 +28,6 @@ add_arg('num_workers',      int,    4,                        '读取数据的�
 add_arg('num_epoch',        int,    50,                       '训练的轮数')
 add_arg('num_speakers',     int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
-add_arg('threshold',        float,  0.5,                      '评估的阈值')
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model_dir',   str,    'models/',                '模型保存的路径')
@@ -54,7 +53,7 @@ def evaluate(model, eval_loader):
     return sum(accuracies) / len(accuracies)
 
 
-def train(args):
+def train():
     # 获取有多少张显卡训练
     nranks = paddle.distributed.get_world_size()
     local_rank = paddle.distributed.get_rank()
@@ -206,4 +205,4 @@ def train(args):
 
 if __name__ == '__main__':
     print_arguments(args)
-    train(args)
+    train()
