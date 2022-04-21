@@ -15,6 +15,7 @@ from utils.utility import add_arguments, print_arguments, cal_accuracy_threshold
 parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模型')
+add_arg('num_speakers',     int,    3242,                     '分类的类别数量')
 add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
 add_arg('list_path',        str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('resume',           str,    'models/',                '模型文件夹路径')
@@ -26,7 +27,7 @@ dataset = CustomDataset(data_list_path=None, feature_method=args.feature_method)
 # 获取模型
 if args.use_model == 'ecapa_tdnn':
     ecapa_tdnn = EcapaTdnn(input_size=dataset.input_size)
-    model = SpeakerIdetification(backbone=ecapa_tdnn)
+    model = SpeakerIdetification(backbone=ecapa_tdnn, num_class=args.num_speakers)
 else:
     raise Exception(f'{args.use_model} 模型不存在！')
 # 加载模型
@@ -52,15 +53,14 @@ def get_all_audio_feature(list_path):
     for batch_id, (audio, label, audio_lens) in tqdm(enumerate(eval_loader())):
         output = model(audio, audio_lens)
         # 计算准确率
-        label = paddle.reshape(label, shape=(-1, 1))
-        acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+        acc = accuracy(input=paddle.nn.functional.softmax(output), label=paddle.reshape(label, shape=(-1, 1)))
         accuracies.append(acc.numpy()[0])
         # 获取特征
         feature = model.backbone(audio, audio_lens).numpy()
         features = np.concatenate((features, feature)) if features is not None else feature
         labels = np.concatenate((labels, label.numpy())) if labels is not None else label.numpy()
     labels = labels.astype(np.int32)
-    print('分类准确率为：{}'.format(sum(accuracies) / len(accuracies)))
+    print('分类准确率为：{:.4f}'.format(sum(accuracies) / len(accuracies)))
     return features, labels
 
 

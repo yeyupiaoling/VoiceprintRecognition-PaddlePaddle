@@ -180,7 +180,8 @@ def train():
                       f'accuracy: {(sum(accuracies) / len(accuracies)):.5f}, '
                       f'lr: {scheduler.get_lr():.8f}, '
                       f'eta: {eta_str}')
-                writer.add_scalar('Train loss', los.numpy()[0], train_step)
+                writer.add_scalar('Train/Loss', los.numpy()[0], train_step)
+                writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), train_step)
                 train_step += 1
             start = time.time()
         # 多卡训练只使用一个进程执行评估和保存模型
@@ -191,9 +192,9 @@ def train():
             print('='*70)
             print(f'[{datetime.now()}] Test {epoch}, accuracy: {acc:.5f} time: {eta_str}')
             print('='*70)
-            writer.add_scalar('Test acc', acc, test_step)
+            writer.add_scalar('Test/Accuracy', acc, test_step)
             # 记录学习率
-            writer.add_scalar('Learning rate', scheduler.last_lr, epoch)
+            writer.add_scalar('Train/Learning rate', scheduler.last_lr, epoch)
             test_step += 1
             # 保存模型
             save_path = os.path.join(args.save_model_dir, args.use_model)

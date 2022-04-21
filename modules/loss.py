@@ -27,7 +27,7 @@ class AdditiveAngularMargin(nn.Layer):
         self.mm = math.sin(math.pi - self.margin) * self.margin
 
     def forward(self, outputs, targets):
-        cosine = outputs.astype('float32')
+        cosine = outputs.astype(paddle.float32)
         sine = paddle.sqrt(1.0 - paddle.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
         if self.easy_margin:
