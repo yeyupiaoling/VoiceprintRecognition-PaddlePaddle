@@ -31,7 +31,7 @@ add_arg('learning_rate',    float,  1e-3,                     '初始学习率�
 add_arg('train_list_path',  str,    'dataset/train_list.txt', '训练数据的数据列表路径')
 add_arg('test_list_path',   str,    'dataset/test_list.txt',  '测试数据的数据列表路径')
 add_arg('save_model_dir',   str,    'models/',                '模型保存的路径')
-add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法')
+add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法', choices=['melspectrogram', 'spectrogram'])
 add_arg('augment_conf_path',str,    'configs/augment.yml',    '数据增强的配置文件，为json格式')
 add_arg('resume',           str,    None,                     '恢复训练的模型文件夹，当为None则不使用恢复模型')
 add_arg('pretrained_model', str,    None,                     '预训练模型的模型文件夹，当为None则不使用预训练模型')
