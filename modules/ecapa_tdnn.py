@@ -348,7 +348,7 @@ class EcapaTdnn(nn.Layer):
             input_size,
             lin_neurons=192,
             activation=nn.ReLU,
-            channels=[1024, 1024, 1024, 1024, 3072],
+            channels=[512, 512, 512, 512, 1536],
             kernel_sizes=[5, 3, 3, 3, 1],
             dilations=[1, 2, 3, 4, 1],
             attention_channels=128,

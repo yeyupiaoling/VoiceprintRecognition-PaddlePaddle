@@ -7,10 +7,10 @@
  - PaddlePaddle 2.2.2
 
 # 模型下载
-|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 模型下载地址  |
-|:---------:|:--------------:|:------------------------------------------------------:|:----:|:-------:|
-| EcapaTdnn | melspectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242 | [开发中]() |
-| EcapaTdnn | melspectrogram |                         更大的数据集                         | 6235 | [开发中]() |
+|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 分类准确率  | 两两对比准确率 | 模型下载地址  |
+|:---------:|:--------------:|:------------------------------------------------------:|:----:|:------:|:-------:|:-------:|
+| EcapaTdnn | melspectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242 | 0.9608 | 0.99980 | [开发中]() |
+| EcapaTdnn | melspectrogram |                         更大的数据集                         | 6235 |        |         | [开发中]() |
 
 
 # 安装环境
@@ -106,8 +106,45 @@ python -m paddle.distributed.launch --gpus '0,1' train.py
 
 训练输出日志：
 ```
-
+-----------  Configuration Arguments -----------
+augment_conf_path: configs/augment.yml
+batch_size: 64
+feature_method: melspectrogram
+learning_rate: 0.001
+num_epoch: 30
+num_speakers: 3242
+num_workers: 4
+pretrained_model: None
+resume: None
+save_model_dir: models/
+test_list_path: dataset/test_list.txt
+train_list_path: dataset/train_list.txt
+use_model: ecapa_tdnn
+------------------------------------------------
+I0424 08:57:03.707505  3377 nccl_context.cc:74] init nccl context nranks: 2 local rank: 0 gpu id: 0 ring id: 0
+W0424 08:57:03.930370  3377 device_context.cc:447] Please NOTE: device: 0, GPU Compute Capability: 7.5, Driver API Version: 11.6, Runtime API Version: 10.2
+W0424 08:57:03.932493  3377 device_context.cc:465] device: 0, cuDNN Version: 7.6.
+I0424 08:57:05.431638  3377 nccl_context.cc:107] init nccl context nranks: 2 local rank: 0 gpu id: 0 ring id: 10
+······
+[2022-04-24 09:25:10.481272] Train epoch [0/30], batch: [7500/8290], loss: 9.03724, accuracy: 0.33252, lr: 0.00100000, eta: 14:58:26
+[2022-04-24 09:25:32.909873] Train epoch [0/30], batch: [7600/8290], loss: 9.00004, accuracy: 0.33600, lr: 0.00100000, eta: 15:09:07
+[2022-04-24 09:25:55.321806] Train epoch [0/30], batch: [7700/8290], loss: 8.96284, accuracy: 0.33950, lr: 0.00100000, eta: 15:13:13
+[2022-04-24 09:26:17.836304] Train epoch [0/30], batch: [7800/8290], loss: 8.92626, accuracy: 0.34294, lr: 0.00100000, eta: 14:57:15
+[2022-04-24 09:26:40.306800] Train epoch [0/30], batch: [7900/8290], loss: 8.88968, accuracy: 0.34638, lr: 0.00100000, eta: 14:51:06
+[2022-04-24 09:27:02.778450] Train epoch [0/30], batch: [8000/8290], loss: 8.85430, accuracy: 0.34964, lr: 0.00100000, eta: 15:00:36
+[2022-04-24 09:27:25.240278] Train epoch [0/30], batch: [8100/8290], loss: 8.81858, accuracy: 0.35294, lr: 0.00100000, eta: 14:51:58
+[2022-04-24 09:27:47.690570] Train epoch [0/30], batch: [8200/8290], loss: 8.78368, accuracy: 0.35630, lr: 0.00100000, eta: 14:55:41
+======================================================================
+[2022-04-24 09:28:12.084404] Test 0, accuracy: 0.76057 time: 0:00:04
+======================================================================
+[2022-04-24 09:28:12.909394] Train epoch [1/30], batch: [0/8290], loss: 5.83753, accuracy: 0.68750, lr: 0.00099453, eta: 2 days, 3:47:48
+[2022-04-24 09:28:35.346418] Train epoch [1/30], batch: [100/8290], loss: 5.80430, accuracy: 0.64527, lr: 0.00099453, eta: 15:00:01
+[2022-04-24 09:28:57.873686] Train epoch [1/30], batch: [200/8290], loss: 5.78946, accuracy: 0.64218, lr: 0.00099453, eta: 14:46:39
+······
 ```
+
+VisualDL页面：
+![VisualDL](./docs/images/log.jpg)
 
 
 # 评估模型
@@ -121,15 +158,21 @@ python eval.py
 -----------  Configuration Arguments -----------
 feature_method: melspectrogram
 list_path: dataset/test_list.txt
-model_path: models/infer/model
+num_speakers: 3242
+resume: models/
+use_model: ecapa_tdnn
 ------------------------------------------------
-
+W0425 08:27:32.057426 17654 device_context.cc:447] Please NOTE: device: 0, GPU Compute Capability: 7.5, Driver API Version: 11.6, Runtime API Version: 10.2
+W0425 08:27:32.065165 17654 device_context.cc:465] device: 0, cuDNN Version: 7.6.
+成功加载模型参数和优化方法参数：models/ecapa_tdnn/model.pdparams
 开始提取全部的音频特征...
-100%|█████████████████████████████████████████████████████| 5332/5332 [01:09<00:00, 77.06it/s]
+167it [00:15, 10.70it/s]
+分类准确率为：0.9608
 开始两两对比音频特征...
-100%|█████████████████████████████████████████████████████| 5332/5332 [01:43<00:00, 51.62it/s]
-100%|█████████████████████████████████████████████████████| 100/100 [00:03<00:00, 28.04it/s]
-当阈值为0.700000, 准确率最大，准确率为：0.999950
+100%|███████████████████████████| 5332/5332 [00:05<00:00, 1027.83it/s]
+找出最优的阈值和对应的准确率...
+100%|███████████████████████████| 100/100 [00:06<00:00, 16.54it/s]
+当阈值为0.58, 两两对比准确率最大，准确率为：0.99980
 ```
 
 # 声纹对比
@@ -144,11 +187,14 @@ python infer_contrast.py --audio_path1=audio/a_1.wav --audio_path2=audio/b_2.wav
 audio_path1: audio/a_1.wav
 audio_path2: audio/b_2.wav
 feature_method: melspectrogram
-model_path: models/infer/model
-threshold: 0.7
+resume: models/
+threshold: 0.5
+use_model: ecapa_tdnn
 ------------------------------------------------
-
-audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：0.020499
+W0425 08:29:10.006249 21121 device_context.cc:447] Please NOTE: device: 0, GPU Compute Capability: 7.5, Driver API Version: 11.6, Runtime API Version: 10.2
+W0425 08:29:10.008555 21121 device_context.cc:465] device: 0, cuDNN Version: 7.6.
+成功加载模型参数和优化方法参数：models/ecapa_tdnn/model.pdparams
+audio/a_1.wav 和 audio/b_2.wav 不是同一个人，相似度为：-0.09565544128417969
 ```
 
 # 声纹识别
@@ -163,12 +209,15 @@ python infer_recognition.py
 -----------  Configuration Arguments -----------
 audio_db: audio_db
 feature_method: melspectrogram
-model_path: models/infer/model
-threshold: 0.7
+resume: models/
+threshold: 0.5
+use_model: ecapa_tdnn
 ------------------------------------------------
-
-Loaded 李达康 audio.
+W0425 08:30:13.257884 23889 device_context.cc:447] Please NOTE: device: 0, GPU Compute Capability: 7.5, Driver API Version: 11.6, Runtime API Version: 10.2
+W0425 08:30:13.260191 23889 device_context.cc:465] device: 0, cuDNN Version: 7.6.
+成功加载模型参数和优化方法参数：models/ecapa_tdnn/model.pdparams
 Loaded 沙瑞金 audio.
+Loaded 李达康 audio.
 请选择功能，0为注册音频到声纹库，1为执行声纹识别：0
 按下回车键开机录音，录音3秒中：
 开始录音......
