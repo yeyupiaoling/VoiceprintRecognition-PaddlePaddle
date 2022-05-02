@@ -1,10 +1,11 @@
 # 前言
-此版本为新版本，如想使用使用旧版本，请转到[V1.0版本](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/V1.0) ，本版本使用了EcapaTdnn模型等多个模型，和多种数据预处理方法，参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
+此版本为新版本，如想使用使用旧版本，请转到[V1.0版本](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/V1.0) ，本项目使用了EcapaTdnn模型实现的声纹识别，不排除以后会支持更多模型，同时本项目也支持了多种数据预处理方法，损失函数参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
 
 使用环境：
 
  - Python 3.7
  - PaddlePaddle 2.2.2
+
 
 # 模型下载
 |    模型     |     预处理方法      |                          数据集                           | 类别数量 | 分类准确率  | 两两对比准确率 |                             模型下载地址                              |
@@ -53,7 +54,7 @@ pip3 install -r requirements.txt
 **注意：** [libsora和pyaudio安装出错解决办法](docs/faq.md)
 
 # 创建数据
-本教程笔者使用的是[中文语音语料数据集](https://github.com/fighting41love/zhvoice) ，这个数据集一共有3242个人的语音数据，有1130000+条语音数据。如果读者有其他更好的数据集，可以混合在一起使用，但要用python的工具模块aukit处理音频，降噪和去除静音。
+本教程笔者使用的是[中文语音语料数据集](https://github.com/fighting41love/zhvoice) ，这个数据集一共有3242个人的语音数据，有1130000+条语音数据，下载之前要全部解压数据集。如果读者有其他更好的数据集，可以混合在一起使用，但最好是要用python的工具模块aukit处理音频，降噪和去除静音。
 
 首先是创建一个数据列表，数据列表的格式为`<语音文件路径\t语音分类标签>`，创建这个列表主要是方便之后的读取，也是方便读取使用其他的语音数据集，语音分类标签是指说话人的唯一ID，不同的语音数据集，可以通过编写对应的生成数据列表的函数，把这些数据集都写在同一个数据列表中。
 
@@ -75,30 +76,8 @@ dataset/zhvoice/zhmagicdata/5_968/5_968_20170707200554.wav	3240
 dataset/zhvoice/zhmagicdata/5_970/5_970_20170616000122.wav	3241
 ```
 
-# 数据读取
-使用librosa可以很方便计算音频的特征，如梅尔频谱的API为`librosa.feature.melspectrogram()`，输出的是numpy值，可以直接用PaddlePaddle训练和预测。跟梅尔频谱同样很重要的梅尔倒谱（MFCCs）更多用于语音识别中，对应的API为`librosa.feature.mfcc()`。声谱图分别使用`librosa.stft()`和`librosa.magphase()`实现。
-```python
-if feature_method == 'melspectrogram':
-    # 计算梅尔频谱
-    features = librosa.feature.melspectrogram(y=wav, sr=sr, n_fft=400, n_mels=80, hop_length=160, win_length=400)
-elif feature_method == 'spectrogram':
-    # 计算声谱图
-    linear = librosa.stft(wav, n_fft=400, win_length=400, hop_length=160)
-    features, _ = librosa.magphase(linear)
-```
-
-# 数据增强
-本项目提供了几种音频增强操作，分布是随机裁剪，添加背景噪声，调节语速，调节音量，和SpecAugment。其中后面4种增加的参数可以在`configs/augment.yml`修改，参数`prob`是指定该增强操作的概率，如果不想使用该增强方式，可以设置为0。要主要的是，添加背景噪声需要把多个噪声音频文件存放在`dataset/noise`，否则会跳过噪声增强
-```yaml
-noise:
-  min_snr_dB: 10
-  max_snr_dB: 30
-  noise_path: "dataset/noise"
-  prob: 0.5
-```
-
 # 训练模型
-创建`train.py`开始训练模型，每训练一轮结束之后，执行一次模型评估，计算模型的准确率，以观察模型的收敛情况。同样的，每一轮训练结束保存一次模型，分别保存了可以恢复训练的模型参数，也可以作为预训练模型参数。以下是单卡训练和单机多卡训练的启动命令。训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
+使用`train.py`训练模型，本项目支持多个音频预处理方式，通过参数`feature_method`可以指定，`melspectrogram`为梅尔频谱，`spectrogram`为声谱图。通过参数`augment_conf_path`可以指定数据增强方式。训练过程中，会使用VisualDL保存训练日志，通过启动VisualDL可以随时查看训练结果，启动命令`visualdl --logdir=log --host 0.0.0.0`
 ```shell
 # 单卡训练
 CUDA_VISIBLE_DEVICES=0 python train.py
@@ -146,7 +125,19 @@ I0424 08:57:05.431638  3377 nccl_context.cc:107] init nccl context nranks: 2 loc
 ```
 
 VisualDL页面：
-![VisualDL](./docs/images/log.jpg)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/2efacf73f16b4571990fbc6f8643d0d7.png#pic_center)
+
+
+# 数据增强
+本项目提供了几种音频增强操作，分布是随机裁剪，添加背景噪声，调节语速，调节音量，和SpecAugment。其中后面4种增加的参数可以在`configs/augment.yml`修改，参数`prob`是指定该增强操作的概率，如果不想使用该增强方式，可以设置为0。要主要的是，添加背景噪声需要把多个噪声音频文件存放在`dataset/noise`，否则会跳过噪声增强
+```yaml
+noise:
+  min_snr_dB: 10
+  max_snr_dB: 30
+  noise_path: "dataset/noise"
+  prob: 0.5
+```
+
 
 
 # 评估模型
