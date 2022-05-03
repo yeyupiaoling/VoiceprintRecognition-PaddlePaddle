@@ -125,7 +125,7 @@ I0424 08:57:05.431638  3377 nccl_context.cc:107] init nccl context nranks: 2 loc
 ```
 
 VisualDL页面：
-![在这里插入图片描述](https://img-blog.csdnimg.cn/2efacf73f16b4571990fbc6f8643d0d7.png#pic_center)
+![VisualDL页面](./docs/images/log.jpg)
 
 
 # 数据增强
