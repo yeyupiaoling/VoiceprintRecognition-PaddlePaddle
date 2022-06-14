@@ -45,7 +45,7 @@ def infer(audio_path):
     data = paddle.to_tensor(data, dtype='float32')
     data_length = paddle.to_tensor([1], dtype='float32')
     # 执行预测
-    feature = model(data, data_length)
+    feature = model.backbone(data, data_length)
     return feature.numpy()
 
 
