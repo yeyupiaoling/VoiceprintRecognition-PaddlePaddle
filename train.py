@@ -81,10 +81,7 @@ def train():
                                   chunk_duration=3,
                                   augmentors=augmentors)
     # 设置支持多卡训练
-    if nranks > 1:
-        train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
-    else:
-        train_batch_sampler = paddle.io.BatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
     train_loader = DataLoader(dataset=train_dataset,
                               batch_sampler=train_batch_sampler,
                               collate_fn=collate_fn,
@@ -106,12 +103,7 @@ def train():
         model = SpeakerIdetification(backbone=ecapa_tdnn, num_class=args.num_speakers)
     else:
         raise Exception(f'{args.use_model} 模型不存在！')
-    if local_rank == 0:
-        paddle.summary(model, input_size=(1, train_dataset.input_size, 98))
-
-    # 设置支持多卡训练
-    if nranks > 1:
-        model = paddle.DataParallel(model)
+    paddle.summary(model, input_size=(1, train_dataset.input_size, 98))
 
     # 初始化epoch数
     last_epoch = 0
@@ -122,6 +114,11 @@ def train():
                                           learning_rate=scheduler,
                                           momentum=0.9,
                                           weight_decay=paddle.regularizer.L2Decay(3e-5))
+
+    if nranks > 1:
+        # 设置支持多卡训练
+        model = fleet.distributed_model(model)
+        optimizer = fleet.distributed_optimizer(optimizer)
 
     # 加载预训练模型
     if args.pretrained_model is not None:
@@ -135,7 +132,7 @@ def train():
                     param_state_dict.pop(name, None)
             else:
                 print('Lack weight: {}'.format(name))
-        model.set_dict(param_state_dict)
+        model.set_state_dict(param_state_dict)
         print('成功加载预训练模型参数')
 
     # 恢复训练
@@ -169,8 +166,8 @@ def train():
             acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
             accuracies.append(acc.numpy()[0])
             loss_sum.append(los.numpy()[0])
-            # 多卡训练只使用一个进程打印
-            if batch_id % 100 == 0 and local_rank == 0:
+            # 打印
+            if batch_id % 100 == 0:
                 eta_sec = ((time.time() - start) * 1000) * (sum_batch - (epoch - last_epoch) * len(train_loader) - batch_id)
                 eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
                 print(f'[{datetime.now()}] '
@@ -180,18 +177,19 @@ def train():
                       f'accuracy: {(sum(accuracies) / len(accuracies)):.5f}, '
                       f'lr: {scheduler.get_lr():.8f}, '
                       f'eta: {eta_str}')
-                writer.add_scalar('Train/Loss', los.numpy()[0], train_step)
-                writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), train_step)
+                if local_rank == 0:
+                    writer.add_scalar('Train/Loss', los.numpy()[0], train_step)
+                    writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), train_step)
                 train_step += 1
             start = time.time()
         # 多卡训练只使用一个进程执行评估和保存模型
+        s = time.time()
+        acc = evaluate(model, eval_loader)
+        eta_str = str(timedelta(seconds=int(time.time() - s)))
+        print('='*70)
+        print(f'[{datetime.now()}] Test {epoch}, accuracy: {acc:.5f} time: {eta_str}')
+        print('='*70)
         if local_rank == 0:
-            s = time.time()
-            acc = evaluate(model, eval_loader)
-            eta_str = str(timedelta(seconds=int(time.time() - s)))
-            print('='*70)
-            print(f'[{datetime.now()}] Test {epoch}, accuracy: {acc:.5f} time: {eta_str}')
-            print('='*70)
             writer.add_scalar('Test/Accuracy', acc, test_step)
             # 记录学习率
             writer.add_scalar('Train/Learning rate', scheduler.last_lr, epoch)
