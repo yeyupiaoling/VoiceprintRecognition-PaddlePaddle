@@ -14,7 +14,8 @@ add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模型')
 add_arg('audio_path1',      str,    'audio/a_1.wav',          '预测第一个音频')
 add_arg('audio_path2',      str,    'audio/b_2.wav',          '预测第二个音频')
-add_arg('threshold',        float,   0.6,                     '判断是否为同一个人的阈值')
+add_arg('threshold',        float,  0.6,                      '判断是否为同一个人的阈值')
+add_arg('audio_duration',   float,  3,                        '预测的音频长度，单位秒')
 add_arg('feature_method',   str,    'melspectrogram',         '音频特征提取方法', choices=['melspectrogram', 'spectrogram'])
 add_arg('resume',           str,    'models/',                '模型文件夹路径')
 args = parser.parse_args()
@@ -36,7 +37,7 @@ model.eval()
 
 # 预测音频
 def infer(audio_path):
-    data = load_audio(audio_path, mode='infer', feature_method=args.feature_method)
+    data = load_audio(audio_path, mode='infer', feature_method=args.feature_method, chunk_duration=args.audio_duration)
     data = data[np.newaxis, :]
     data = paddle.to_tensor(data, dtype='float32')
     data_length = paddle.to_tensor([1], dtype='float32')

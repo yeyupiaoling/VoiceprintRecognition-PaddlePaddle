@@ -25,6 +25,8 @@ add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('use_model',        str,    'ecapa_tdnn',             '所使用的模型')
 add_arg('batch_size',       int,    64,                       '训练的批量大小')
 add_arg('num_workers',      int,    4,                        '读取数据的线程数量')
+add_arg('audio_duration',   float,  3,                        '训练的音频长度，单位秒')
+add_arg('min_duration',     float,  0.5,                      '训练的最短音频长度，单位秒')
 add_arg('num_epoch',        int,    30,                       '训练的轮数')
 add_arg('num_speakers',     int,    3242,                     '分类的类别数量')
 add_arg('learning_rate',    float,  1e-3,                     '初始学习率的大小')
@@ -78,7 +80,8 @@ def train():
                                   feature_method=args.feature_method,
                                   mode='train',
                                   sr=16000,
-                                  chunk_duration=3,
+                                  chunk_duration=args.audio_duration,
+                                  min_duration=args.min_duration,
                                   augmentors=augmentors)
     # 设置支持多卡训练
     train_batch_sampler = paddle.io.DistributedBatchSampler(train_dataset, batch_size=args.batch_size, shuffle=True)
@@ -91,7 +94,7 @@ def train():
                                  feature_method=args.feature_method,
                                  mode='eval',
                                  sr=16000,
-                                 chunk_duration=3)
+                                 chunk_duration=args.audio_duration)
     eval_loader = DataLoader(dataset=eval_dataset,
                              batch_size=args.batch_size,
                              collate_fn=collate_fn,
@@ -153,6 +156,7 @@ def train():
     for epoch in range(last_epoch, args.num_epoch):
         loss_sum = []
         accuracies = []
+        train_times = []
         start = time.time()
         for batch_id, (audio, label, audio_lens) in enumerate(train_loader()):
             output = model(audio, audio_lens)
@@ -166,9 +170,10 @@ def train():
             acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
             accuracies.append(acc.numpy()[0])
             loss_sum.append(los.numpy()[0])
+            train_times.append((time.time() - start) * 1000)
             # 打印
             if batch_id % 100 == 0:
-                eta_sec = ((time.time() - start) * 1000) * (sum_batch - (epoch - last_epoch) * len(train_loader) - batch_id)
+                eta_sec = (sum(train_times) / len(train_times)) * (sum_batch - (epoch - last_epoch) * len(train_loader) - batch_id)
                 eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
                 print(f'[{datetime.now()}] '
                       f'Train epoch [{epoch}/{args.num_epoch}], '
