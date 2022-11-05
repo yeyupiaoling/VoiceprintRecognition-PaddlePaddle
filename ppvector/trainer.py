@@ -88,7 +88,7 @@ class PPVectorTrainer(object):
             self.model = SpeakerIdetification(backbone=self.ecapa_tdnn, num_class=self.configs.dataset_conf.num_speakers)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
-        paddle.summary(self.model, input_size=(1, input_size, 98))
+        # print(self.model)
         # 获取损失函数
         self.loss = AAMLoss()
         if is_train:
