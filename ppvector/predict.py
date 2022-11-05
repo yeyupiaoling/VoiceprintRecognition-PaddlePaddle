@@ -41,12 +41,9 @@ class PPVectorPredictor:
         # 创建模型
         if not os.path.exists(model_path):
             raise Exception("模型文件不存在，请检查{}是否存在！".format(model_path))
-
-        # 获取模型
-        audio_featurizer = AudioFeaturizer(**self.configs.preprocess_conf)
         # 获取模型
         if self.configs.use_model == 'ecapa_tdnn':
-            ecapa_tdnn = EcapaTdnn(input_size=audio_featurizer.feature_dim)
+            ecapa_tdnn = EcapaTdnn(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf)
             model = SpeakerIdetification(backbone=ecapa_tdnn, num_class=self.configs.dataset_conf.num_speakers)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
