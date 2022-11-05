@@ -3,7 +3,7 @@ dataset_conf:
   # 训练的批量大小
   batch_size: 64
   # 说话人数量，即分类大小
-  num_speakers: 3242
+  num_speakers: 10
   # 读取数据的线程数量
   num_workers: 8
   # 过滤最短的音频长度

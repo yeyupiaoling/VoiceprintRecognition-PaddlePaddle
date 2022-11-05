@@ -33,16 +33,13 @@ record_audio = RecordAudio()
 while True:
     select_fun = int(input("请选择功能，0为注册音频到声纹库，1为执行声纹识别："))
     if select_fun == 0:
-        audio_path = record_audio.record()
+        audio_data = record_audio.record()
         name = input("请输入该音频用户的名称：")
         if name == '': continue
-        predictor.register(audio_path, name)
+        predictor.register(user_name=name, audio_data=audio_data)
     elif select_fun == 1:
-        audio_path = record_audio.record()
-        name, p = predictor.recognition(audio_path)
-        if p > args.threshold:
-            print(f"识别说话的为：{name}，相似度为：{p}")
-        else:
-            print("音频库没有该用户的语音")
+        audio_data = record_audio.record()
+        name = predictor.recognition(audio_data)
+        print(f"识别说话的为：{name}")
     else:
         print('请正确选择功能')

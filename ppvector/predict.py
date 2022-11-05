@@ -67,8 +67,8 @@ class PPVectorPredictor:
         self.users_audio_path = []
         # 加载声纹库
         self.audio_db_path = audio_db_path
-        self.audio_indexes_path = os.path.join(audio_db_path, "audio_indexes.bin")
         if self.audio_db_path is not None:
+            self.audio_indexes_path = os.path.join(audio_db_path, "audio_indexes.bin")
             # 加载声纹库中的声纹
             self.__load_faces(self.audio_db_path)
 
@@ -95,10 +95,11 @@ class PPVectorPredictor:
         self.__load_face_indexes()
         os.makedirs(audio_db_path, exist_ok=True)
         audios_path = []
-        for root, dirs, files in os.walk(audio_db_path):
-            for file in files:
-                if file == "audio_indexes.bin": continue
-                audios_path.append(os.path.join(root, file).replace('\\', '/'))
+        for name in os.listdir(audio_db_path):
+            audio_dir = os.path.join(audio_db_path, name)
+            if not os.path.isdir(audio_dir):continue
+            for file in os.listdir(audio_dir):
+                audios_path.append(os.path.join(audio_dir, file).replace('\\', '/'))
         # 声纹库没数据就跳过
         if len(audios_path) == 0: return
         logger.info('正在加载声纹库数据...')
@@ -141,7 +142,10 @@ class PPVectorPredictor:
             similarity = cosine_similarity(self.audio_feature, feature.reshape(1, -1)).squeeze()
             abs_similarity = np.abs(similarity)
             # 获取候选索引
-            candidate_idx = np.argpartition(abs_similarity, -self.cdd_num)[-self.cdd_num:]
+            if len(abs_similarity) < self.cdd_num:
+                candidate_idx = np.argpartition(abs_similarity, -len(abs_similarity))[-len(abs_similarity):]
+            else:
+                candidate_idx = np.argpartition(abs_similarity, -self.cdd_num)[-self.cdd_num:]
             # 过滤低于阈值的索引
             remove_idx = np.where(abs_similarity[candidate_idx] < self.threshold)
             candidate_idx = np.delete(candidate_idx, remove_idx)
@@ -156,32 +160,28 @@ class PPVectorPredictor:
 
     # 预测一个音频的特征
     def predict(self,
-                audio_path=None,
-                audio_bytes=None,
-                audio_ndarray=None,
+                audio_data,
                 sample_rate=16000):
         """
         预测函数，只预测完整的一句话。
-        :param audio_path: 需要预测音频的路径
-        :param audio_bytes: 需要预测的音频wave读取的字节流
-        :param audio_ndarray: 需要预测的音频未预处理的numpy值
+        :param audio_data: 需要识别的数据，支持文件路径，字节，numpy
         :param sample_rate: 如果传入的事numpy数据，需要指定采样率
         :return: 声纹特征向量
         """
-        assert audio_path is not None or audio_bytes is not None or audio_ndarray is not None, \
-            'audio_path，audio_bytes和audio_ndarray至少有一个不为None！'
         # 加载音频文件，并进行预处理
-        if audio_path is not None:
-            audio_data = AudioSegment.from_file(audio_path)
-        elif audio_ndarray is not None:
-            audio_data = AudioSegment.from_ndarray(audio_ndarray, sample_rate)
+        if isinstance(audio_data, str):
+            input_data = AudioSegment.from_file(audio_data)
+        elif isinstance(audio_data, np.ndarray):
+            input_data = AudioSegment.from_ndarray(audio_data, sample_rate)
+        elif isinstance(audio_data, bytes):
+            input_data = AudioSegment.from_wave_bytes(audio_data)
         else:
-            audio_data = AudioSegment.from_bytes(audio_bytes)
-        audio_feature = self._audio_featurizer.featurize(audio_data)
-        audio_data = paddle.to_tensor(audio_feature, dtype=paddle.float32).unsqueeze(0)
-        data_length = paddle.to_tensor([audio_data.shape[1]], dtype=paddle.int64)
+            raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
+        audio_feature = self._audio_featurizer.featurize(input_data)
+        input_data = paddle.to_tensor(audio_feature, dtype=paddle.float32).unsqueeze(0)
+        data_length = paddle.to_tensor([input_data.shape[1]], dtype=paddle.int64)
         # 执行预测
-        feature = self.predictor(audio_data, data_length).numpy()[0]
+        feature = self.predictor(input_data, data_length).numpy()[0]
         return feature
 
     # 预测一批音频的特征
@@ -198,32 +198,47 @@ class PPVectorPredictor:
         return features
 
     # 声纹对比
-    def contrast(self, audio_path1, audio_path2):
-        feature1 = self.predict(audio_path1)
-        feature2 = self.predict(audio_path2)
+    def contrast(self, audio_data1, audio_data2):
+        feature1 = self.predict(audio_data1)
+        feature2 = self.predict(audio_data2)
         # 对角余弦值
         dist = np.dot(feature1, feature2) / (np.linalg.norm(feature1) * np.linalg.norm(feature2))
         return dist
 
     # 声纹注册
-    def register(self, audio_path, user_name):
-        audio_data = AudioSegment.from_file(audio_path)
-        feature = self.predict(audio_ndarray=audio_data, sample_rate=audio_data.sample_rate)
+    def register(self,
+                 user_name,
+                 audio_data,
+                 sample_rate=16000):
+        # 加载音频文件，并进行预处理
+        if isinstance(audio_data, str):
+            input_data = AudioSegment.from_file(audio_data)
+        elif isinstance(audio_data, np.ndarray):
+            input_data = AudioSegment.from_ndarray(audio_data, sample_rate)
+        elif isinstance(audio_data, bytes):
+            input_data = AudioSegment.from_wave_bytes(audio_data)
+        else:
+            raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
+        feature = self.predict(audio_data=input_data.samples, sample_rate=input_data.sample_rate)
         if self.audio_feature is None:
             self.audio_feature = feature
         else:
             self.audio_feature = np.vstack((self.audio_feature, feature))
         # 保存
-        audio_path = os.path.join(self.audio_db_path, user_name,
-                                  f'{len(os.listdir(os.path.join(self.audio_db_path, user_name)))}.wav')
-        audio_data.to_wav_file(audio_path)
+        if not os.path.exists(os.path.join(self.audio_db_path, user_name)):
+            audio_path = os.path.join(self.audio_db_path, user_name, '0.wav')
+        else:
+            audio_path = os.path.join(self.audio_db_path, user_name,
+                                      f'{len(os.listdir(os.path.join(self.audio_db_path, user_name)))}.wav')
+        os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+        input_data.to_wav_file(audio_path)
         self.users_audio_path.append(audio_path.replace('\\', '/'))
         self.users_name.append(user_name)
         self.__write_index()
         return True, "注册成功"
 
     # 声纹识别
-    def recognition(self, audio_path):
-        feature = self.predict(audio_path)
-        users = self.__retrieval(np_feature=[feature])
-        return users
+    def recognition(self, audio_data):
+        feature = self.predict(audio_data)
+        user = self.__retrieval(np_feature=[feature])[0]
+        return user

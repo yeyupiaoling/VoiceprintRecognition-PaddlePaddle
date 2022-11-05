@@ -7,3 +7,9 @@ pyaudio>=0.2.11
 resampy==0.2.2
 ffmpeg-python>=0.2.0
 SoundFile~=0.10
+pyyaml>=5.4.1
+termcolor>=1.1.0
+typeguard>=2.13.3
+paddleaudio>=1.0.1
+scikit-learn>=1.0.2
+pydub>=0.25.1

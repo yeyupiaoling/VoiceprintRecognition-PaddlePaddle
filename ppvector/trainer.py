@@ -5,6 +5,7 @@ import shutil
 import time
 from datetime import timedelta
 
+import numpy as np
 import paddle
 from paddle.distributed import fleet
 from paddle.io import DataLoader
@@ -21,7 +22,7 @@ from ppvector.models.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
 from ppvector.models.loss import AAMLoss
 from ppvector.utils.logger import setup_logger
 from ppvector.utils.scheduler import WarmupLR
-from ppvector.utils.utils import dict_to_object
+from ppvector.utils.utils import dict_to_object, cal_accuracy_threshold
 
 logger = setup_logger(__name__)
 
@@ -288,7 +289,7 @@ class PPVectorTrainer(object):
                 # 保存模型
                 self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_loss=loss)
 
-    def evaluate(self, resume_model='models/ecapa_tdnn_spectrogram/best_model/', display_result=False):
+    def evaluate(self, resume_model='models/ecapa_tdnn_spectrogram/best_model/', cal_threshold=False):
         """
         评估模型
         :param resume_model: 所使用的模型
@@ -313,19 +314,40 @@ class PPVectorTrainer(object):
             eval_model = self.model
 
         accuracies, losses = [], []
+        features, labels = None, None
         with paddle.no_grad():
             for batch_id, (audio, label, audio_lens) in enumerate(tqdm(self.test_loader())):
                 output = eval_model(audio, audio_lens)
+                feature = eval_model.backbone(audio).numpy()
                 los = self.loss(output, label)
                 # 计算准确率
                 label = paddle.reshape(label, shape=(-1, 1))
                 acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+                features = np.concatenate((features, feature)) if features is not None else feature
+                labels = np.concatenate((labels, label)) if labels is not None else label
                 accuracies.append(acc.numpy()[0])
                 losses.append(los.numpy()[0])
         loss = float(sum(losses) / len(losses))
         acc = float(sum(accuracies) / len(accuracies))
         self.model.train()
+        if cal_threshold:
+            scores, y_true = [], []
+            labels = labels.astype(np.int32)
+            print('开始两两对比音频特征...')
+            for i in tqdm(range(len(features))):
+                feature_1 = features[i]
+                feature_1 = np.expand_dims(feature_1, 0).repeat(len(features) - i, axis=0)
+                feature_2 = features[i:]
+                feature_1 = paddle.to_tensor(feature_1, dtype=paddle.float32)
+                feature_2 = paddle.to_tensor(feature_2, dtype=paddle.float32)
+                score = paddle.nn.functional.cosine_similarity(feature_1, feature_2, axis=-1).numpy().tolist()
+                scores.extend(score)
+                y_true.extend(np.array(labels[i] == labels[i:]).astype(np.int32))
+            print('找出最优的阈值和对应的准确率...')
+            best_acc, threshold = cal_accuracy_threshold(scores, y_true)
+            print(f'当阈值为{threshold:.2f}, 两两对比准确率最大，准确率为：{best_acc:.5f}')
         return loss, acc
+
 
     def export(self, save_model_path='models/', resume_model='models/ecapa_tdnn_spectrogram/best_model/'):
         """

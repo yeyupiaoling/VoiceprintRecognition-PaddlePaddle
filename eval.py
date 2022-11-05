@@ -27,6 +27,6 @@ trainer = PPVectorTrainer(configs=configs, use_gpu=args.use_gpu)
 start = time.time()
 loss, accuracy = trainer.evaluate(resume_model=args.resume_model.format(configs['use_model'],
                                                                         configs['preprocess_conf']['feature_method']),
-                                  display_result=True)
+                                  cal_threshold=True)
 end = time.time()
 print('评估消耗时间：{}s，loss：{:.5f}，accuracy：{:.5f}'.format(int(end - start), loss, accuracy))
