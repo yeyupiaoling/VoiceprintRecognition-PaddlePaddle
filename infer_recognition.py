@@ -12,6 +12,7 @@ add_arg = functools.partial(add_arguments, argparser=parser)
 add_arg('configs',          str,    'configs/ecapa_tdnn.yml',   '配置文件')
 add_arg('use_gpu',          bool,   True,                       '是否使用GPU预测')
 add_arg('audio_db_path',    str,    'audio_db/',                '音频库的路径')
+add_arg('record_seconds',   int,    3,                          '录音长度')
 add_arg('threshold',        float,  0.6,                        '判断是否为同一个人的阈值')
 add_arg('model_path',       str,    'models/{}_{}/best_model/', '导出的预测模型文件路径')
 args = parser.parse_args()
@@ -33,13 +34,16 @@ record_audio = RecordAudio()
 while True:
     select_fun = int(input("请选择功能，0为注册音频到声纹库，1为执行声纹识别："))
     if select_fun == 0:
-        audio_data = record_audio.record()
+        audio_data = record_audio.record(record_seconds=args.record_seconds)
         name = input("请输入该音频用户的名称：")
         if name == '': continue
         predictor.register(user_name=name, audio_data=audio_data)
     elif select_fun == 1:
-        audio_data = record_audio.record()
+        audio_data = record_audio.record(record_seconds=args.record_seconds)
         name = predictor.recognition(audio_data)
-        print(f"识别说话的为：{name}")
+        if name:
+            print(f"识别说话的为：{name}")
+        else:
+            print(f"没有识别到说话人，可能是没注册。")
     else:
         print('请正确选择功能')

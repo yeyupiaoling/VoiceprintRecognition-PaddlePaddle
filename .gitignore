@@ -1,11 +1,12 @@
 .idea/
 __pycache__/
+build/
+dist/
+ppvector.egg-info/
 log/
 models/
+test.py
 dataset/*
-audio_db/*
-!audio_db/李达康.wav
-!audio_db/沙瑞金.wav
 !dataset/a_1.wav
 !dataset/a_2.wav
 !dataset/b_1.wav

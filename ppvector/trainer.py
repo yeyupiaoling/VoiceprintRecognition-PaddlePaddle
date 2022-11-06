@@ -10,6 +10,7 @@ import paddle
 from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
+from paddle.optimizer.lr import CosineAnnealingDecay
 from tqdm import tqdm
 from visualdl import LogWriter
 
@@ -17,11 +18,9 @@ from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer.audio_featurizer import AudioFeaturizer
 from ppvector.data_utils.reader import CustomDataset
-
 from ppvector.models.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
 from ppvector.models.loss import AAMLoss
 from ppvector.utils.logger import setup_logger
-from ppvector.utils.scheduler import WarmupLR
 from ppvector.utils.utils import dict_to_object, cal_accuracy_threshold
 
 logger = setup_logger(__name__)
@@ -94,11 +93,12 @@ class PPVectorTrainer(object):
         self.loss = AAMLoss()
         if is_train:
             # 设置优化方法
-            self.scheduler = WarmupLR(warmup_steps=self.configs.optimizer_conf.warmup_steps,
-                                      learning_rate=float(self.configs.optimizer_conf.learning_rate))
-            self.optimizer = paddle.optimizer.Adam(parameters=self.model.parameters(),
-                                                   learning_rate=self.scheduler,
-                                                   weight_decay=float(self.configs.optimizer_conf.weight_decay))
+            self.scheduler = CosineAnnealingDecay(learning_rate=float(self.configs.optimizer_conf.learning_rate),
+                                                  T_max=self.configs.train_conf.max_epoch)
+            self.optimizer = paddle.optimizer.Momentum(parameters=self.model.parameters(),
+                                                       learning_rate=self.scheduler,
+                                                       momentum=0.9,
+                                                       weight_decay=float(self.configs.optimizer_conf.weight_decay))
 
     def __load_pretrained(self, pretrained_model):
         # 加载预训练模型
@@ -209,11 +209,11 @@ class PPVectorTrainer(object):
                 writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
                 writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
                 train_times = []
-                self.scheduler.step()
             # 固定步数也要保存一次模型
             if batch_id % 10000 == 0 and batch_id != 0 and local_rank == 0:
                 self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id)
             start = time.time()
+        self.scheduler.step()
 
     def train(self,
               save_model_path='models/',
@@ -280,7 +280,7 @@ class PPVectorTrainer(object):
                 test_step += 1
                 self.model.train()
                 # 记录学习率
-                writer.add_scalar('Train/lr', self.scheduler.last_lr, epoch_id)
+                writer.add_scalar('Train/lr', self.scheduler.last_lr(), epoch_id)
                 # # 保存最优模型
                 if loss <= best_loss:
                     best_loss = loss

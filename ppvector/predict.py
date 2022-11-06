@@ -149,18 +149,17 @@ class PPVectorPredictor:
             # 获取标签最多的值
             candidate_label_list = list(np.array(self.users_name)[candidate_idx])
             if len(candidate_label_list) == 0:
-                max_label = "unknown"
+                max_label = None
             else:
                 max_label = max(candidate_label_list, key=candidate_label_list.count)
             labels.append(max_label)
         return labels
 
-    # 预测一个音频的特征
     def predict(self,
                 audio_data,
                 sample_rate=16000):
-        """
-        预测函数，只预测完整的一句话。
+        """预测一个音频的特征
+
         :param audio_data: 需要识别的数据，支持文件路径，字节，numpy
         :param sample_rate: 如果传入的事numpy数据，需要指定采样率
         :return: 声纹特征向量
@@ -181,14 +180,24 @@ class PPVectorPredictor:
         feature = self.predictor(input_data, data_length).numpy()[0]
         return feature
 
-    # 预测一批音频的特征
     def predict_batch(self, audios_data):
-        """
-        预测函数，只预测完整的一句话。
+        """预测一批音频的特征
+
         :param audios_data: 需要预测音频的路径
         :return: 声纹特征向量
         """
-        audios_data = paddle.to_tensor(audios_data, dtype=paddle.float32)
+        # 找出音频长度最长的
+        batch = sorted(audios_data, key=lambda a: a.shape[1], reverse=True)
+        freq_size = batch[0].shape[0]
+        max_audio_length = batch[0].shape[1]
+        batch_size = len(batch)
+        # 以最大的长度创建0张量
+        inputs = np.zeros((batch_size, freq_size, max_audio_length), dtype='float32')
+        for i, sample in enumerate(batch):
+            seq_length = sample.shape[1]
+            # 将数据插入都0张量中，实现了padding
+            inputs[i, :, :seq_length] = sample[:, :]
+        audios_data = paddle.to_tensor(inputs, dtype=paddle.float32)
         data_length = paddle.to_tensor([a.shape[1] for a in audios_data], dtype=paddle.int64)
         # 执行预测
         features = self.predictor(audios_data, data_length).numpy()
@@ -237,5 +246,5 @@ class PPVectorPredictor:
     # 声纹识别
     def recognition(self, audio_data):
         feature = self.predict(audio_data)
-        user = self.__retrieval(np_feature=[feature])[0]
-        return user
+        name = self.__retrieval(np_feature=[feature])[0]
+        return name
