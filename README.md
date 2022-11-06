@@ -11,8 +11,10 @@
 
 使用环境：
 
+ - Anaconda 3
  - Python 3.8
- - PaddlePaddle 2.4.0
+ - PaddlePaddle 2.3.2
+ - Windows 10 or Ubuntu 18.04
 
 
 # 模型下载
@@ -21,10 +23,26 @@
 |:---------:|:-----------:|:------------------------------------------------------:|:----:|:-----:|:-------:|:------:|
 | EcapaTdnn | spectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242 |       |         |        |
 
-# 安装环境
-1. 安装PaddlePaddle的GPU版本，如果已经安装过PaddlePaddle，测无需再次安装。
+
+## 安装环境
+
+ - 首先安装的是PaddlePaddle的GPU版本，如果已经安装过了，请跳过。
 ```shell
-pip install paddlepaddle-gpu==2.4.0 -i https://mirrors.aliyun.com/pypi/simple/
+conda install paddlepaddle-gpu==2.3.2 cudatoolkit=10.2 --channel https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/Paddle/
+```
+
+ - 安装ppvector库。
+ 
+使用pip安装，命令如下：
+```shell
+python -m pip install ppvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+**建议源码安装**，源码安装能保证使用最新代码。
+```shell
+git clone https://github.com/yeyupiaoling/VoiceprintRecognition_PaddlePaddle.git
+cd VoiceprintRecognition_PaddlePaddle/
+python setup.py install
 ```
 
 # 创建数据

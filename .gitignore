@@ -6,8 +6,5 @@ ppvector.egg-info/
 log/
 models/
 test.py
-dataset/*
-!dataset/a_1.wav
-!dataset/a_2.wav
-!dataset/b_1.wav
-!dataset/b_2.wav
+dataset/
+audio_db/
