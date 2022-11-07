@@ -1,5 +1,5 @@
 # 前言
-此版本为新版本，如想使用使用旧版本，请转到[V1.0版本](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/V1.0) ，本项目使用了EcapaTdnn模型实现的声纹识别，不排除以后会支持更多模型，同时本项目也支持了多种数据预处理方法，损失函数参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
+本项目使用了EcapaTdnn模型实现的声纹识别，同时本项目也支持了多种数据预处理方法，损失函数参考了人脸识别项目的做法[PaddlePaddle-MobileFaceNets](https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets) ,使用了ArcFace Loss，ArcFace loss：Additive Angular Margin Loss（加性角度间隔损失函数），对特征向量和权重归一化，对θ加上角度间隔m，角度间隔比余弦间隔在对角度的影响更加直接。
 
 
 **欢迎大家扫码入QQ群讨论**，或者直接搜索QQ群号`1169600237`，问题答案为博主Github的ID`yeyupiaoling`。
@@ -19,12 +19,12 @@
 
 |    模型     |     预处理方法      |                          数据集                           | 类别数量  | 分类准确率  | 两两对比准确率 |                                                                模型下载地址                                                                |
 |:---------:|:--------------:|:------------------------------------------------------:|:-----:|:------:|:-------:|:------------------------------------------------------------------------------------------------------------------------------------:|
-| EcapaTdnn | melspectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.9608 | 0.99980 |    [CSDN](https://download.csdn.net/download/qq_33200967/85222109) / [淘宝](https://item.taobao.com/item.htm?ft=t&id=688383035579)     |
-| EcapaTdnn |  spectrogram   | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.9617 | 0.99980 |    [CSDN](https://download.csdn.net/download/qq_33200967/85223852)  / [淘宝](https://item.taobao.com/item.htm?ft=t&id=688388935644)    |
-| EcapaTdnn | melspectrogram |                         更大的数据集                         | 6355  | 0.9109 | 0.99990 |   [CSDN](https://download.csdn.net/download/qq_33200967/85255198)   / [淘宝](https://item.taobao.com/item.htm?ft=t&id=687823121965)    |
-| EcapaTdnn |  spectrogram   |                         更大的数据集                         | 6355  | 0.9105 | 0.99990 |  [CSDN](https://download.csdn.net/download/qq_33200967/85260634)   /   [淘宝](https://item.taobao.com/item.htm?ft=t&id=688389083744)   |
-| EcapaTdnn | melspectrogram |                         超大的数据集                         | 13718 | 0.9337 | 0.99995 |   [CSDN](https://download.csdn.net/download/qq_33200967/86336855)   / [淘宝](https://item.taobao.com/item.htm?ft=t&id=688108162254)    |
-| EcapaTdnn |  spectrogram   |                         超大的数据集                         | 13718 | 0.9326 | 0.99995 | [CSDN](https://download.csdn.net/download/qq_33200967/86394714)      /   [淘宝](https://item.taobao.com/item.htm?ft=t&id=688108074412) |
+| EcapaTdnn | melspectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.9608 | 0.99980 |    [点击下载](https://download.csdn.net/download/qq_33200967/85222109)    |
+| EcapaTdnn |  spectrogram   | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.9617 | 0.99980 |    [点击下载](https://download.csdn.net/download/qq_33200967/85223852)   |
+| EcapaTdnn | melspectrogram |                         更大的数据集                         | 6355  | 0.9109 | 0.99990 |   [点击下载](https://download.csdn.net/download/qq_33200967/85255198)     |
+| EcapaTdnn |  spectrogram   |                         更大的数据集                         | 6355  | 0.9105 | 0.99990 |  [点击下载](https://download.csdn.net/download/qq_33200967/85260634)  |
+| EcapaTdnn | melspectrogram |                         超大的数据集                         | 13718 | 0.9337 | 0.99995 |   [点击下载](https://download.csdn.net/download/qq_33200967/86336855)   / [淘宝](https://item.taobao.com/item.htm?ft=t&id=688108162254)    |
+| EcapaTdnn |  spectrogram   |                         超大的数据集                         | 13718 | 0.9326 | 0.99995 | [点击下载](https://download.csdn.net/download/qq_33200967/86394714)      /   [淘宝](https://item.taobao.com/item.htm?ft=t&id=688108074412) |
 
 
 # 安装环境
