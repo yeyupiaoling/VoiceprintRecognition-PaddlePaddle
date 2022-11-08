@@ -27,15 +27,12 @@ def get_data_list(infodata_path, list_path, zhvoice_path):
             speakers.append(speaker)
         label = speakers_dict[speaker]
         sound_path = os.path.join(zhvoice_path, line['index'])
+        if not os.path.exists(sound_path):continue
         save_path = "%s.wav" % sound_path[:-4]
         if not os.path.exists(save_path):
-            try:
-                wav = AudioSegment.from_mp3(sound_path)
-                wav.export(save_path, format="wav")
-                os.remove(sound_path)
-            except Exception as e:
-                print('数据出错：%s, 信息：%s' % (sound_path, e))
-                continue
+            wav = AudioSegment.from_mp3(sound_path)
+            wav.export(save_path, format="wav")
+            os.remove(sound_path)
         if sound_sum % 200 == 0:
             f_test.write('%s\t%d\n' % (save_path.replace('\\', '/'), label))
         else:

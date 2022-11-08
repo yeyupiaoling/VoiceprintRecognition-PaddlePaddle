@@ -35,8 +35,6 @@ preprocess_conf:
 optimizer_conf:
   # 初始学习率的大小
   learning_rate: 0.001
-  # 学习率预热步数
-  warmup_steps: 200
   weight_decay: 1e-6
 
 model_conf:
@@ -48,7 +46,7 @@ model_conf:
 train_conf:
   # 训练的轮数
   max_epoch: 30
-  log_interval: 10
+  log_interval: 100
 
 # 所使用的模型
 use_model: 'ecapa_tdnn'
