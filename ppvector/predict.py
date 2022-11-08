@@ -1,6 +1,5 @@
 import os
 import pickle
-import shutil
 
 import numpy as np
 import paddle
@@ -22,21 +21,27 @@ class PPVectorPredictor:
                  configs,
                  threshold=0.6,
                  audio_db_path=None,
-                 audio_indexes_path=None,
                  model_path='models/ecapa_tdnn_spectrogram/best_model/',
                  use_gpu=True):
         """
         语音识别预测工具
         :param configs: 配置参数
+        :param threshold: 判断是否为同一个人的阈值
+        :param audio_db_path: 声纹库路径
         :param model_path: 导出的预测模型文件夹路径
         :param use_gpu: 是否使用GPU预测
         """
+        if use_gpu:
+            assert paddle.is_compiled_with_cuda(), 'GPU不可用'
+            paddle.device.set_device("gpu")
+        else:
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+            paddle.device.set_device("cpu")
         # 索引候选数量
         self.cdd_num = 5
         self.threshold = threshold
         self.configs = dict_to_object(configs)
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
-        self.use_gpu = use_gpu
         self._audio_featurizer = AudioFeaturizer(**self.configs.preprocess_conf)
         # 创建模型
         if not os.path.exists(model_path):
@@ -192,7 +197,7 @@ class PPVectorPredictor:
         max_audio_length = batch[0].shape[1]
         batch_size = len(batch)
         # 以最大的长度创建0张量
-        inputs = np.zeros((batch_size, freq_size, max_audio_length), dtype='float32')
+        inputs = np.zeros((batch_size, freq_size, max_audio_length), dtype=np.float32)
         for i, sample in enumerate(batch):
             seq_length = sample.shape[1]
             # 将数据插入都0张量中，实现了padding
