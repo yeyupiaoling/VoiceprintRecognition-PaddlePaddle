@@ -425,12 +425,13 @@ class EcapaTdnn(nn.Layer):
         Compute embeddings.
 
         Args:
-            x (paddle.Tensor): Input log-fbanks with shape (N, n_mels, T).
+            x (paddle.Tensor): Input data with shape (N, time, freq).
             lengths (paddle.Tensor, optional): Length proportions of batch length with shape (N). Defaults to None.
 
         Returns:
             paddle.Tensor: Output embeddings with shape (N, self.emb_size, 1)
         """
+        x = x.transpose([0, 2, 1])
         xl = []
         for layer in self.blocks:
             try:
@@ -501,7 +502,7 @@ class SpeakerIdetification(nn.Layer):
 
         Args:
             x (paddle.Tensor): input audio feats,
-                               shape=[batch, dimension, times]
+                               shape=[batch, times, dimension]
             lengths (paddle.Tensor, optional): input audio length.
                                         shape=[batch, times]
                                         Defaults to None.
