@@ -10,6 +10,7 @@ import paddle
 from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 from visualdl import LogWriter
 
@@ -85,7 +86,8 @@ class PPVectorTrainer(object):
         # 获取模型
         if self.configs.use_model == 'ecapa_tdnn':
             self.ecapa_tdnn = EcapaTdnn(input_size=input_size, **self.configs.model_conf)
-            self.model = SpeakerIdetification(backbone=self.ecapa_tdnn, num_class=self.configs.dataset_conf.num_speakers)
+            self.model = SpeakerIdetification(backbone=self.ecapa_tdnn,
+                                              num_class=self.configs.dataset_conf.num_speakers)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
         # print(self.model)
@@ -272,9 +274,10 @@ class PPVectorTrainer(object):
             # 多卡训练只使用一个进程执行评估和保存模型
             if local_rank == 0:
                 logger.info('=' * 70)
-                loss, acc = self.evaluate(resume_model=None)
-                logger.info('Test epoch: {}, time/epoch: {}, loss: {:.5f}, accuracy: {:.5f}'.format(
-                    epoch_id, str(timedelta(seconds=(time.time() - start_epoch))), loss, acc))
+                loss, acc, precision, recall, f1_score = self.evaluate(resume_model=None)
+                logger.info('Test epoch: {}, time/epoch: {}, loss: {:.5f}, accuracy: {:.5f}, precision: {:.5f}, '
+                            'recall: {:.5f}, f1_score: {:.5f}'.format(epoch_id, str(timedelta(
+                    seconds=(time.time() - start_epoch))), loss, acc, precision, recall, f1_score))
                 logger.info('=' * 70)
                 writer.add_scalar('Test/Accuracy', acc, test_step)
                 writer.add_scalar('Test/Loss', loss, test_step)
@@ -314,7 +317,7 @@ class PPVectorTrainer(object):
         else:
             eval_model = self.model
 
-        accuracies, losses = [], []
+        accuracies, losses, preds, r_labels = [], [], [], []
         features, labels = None, None
         with paddle.no_grad():
             for batch_id, (audio, label, audio_lens) in enumerate(tqdm(self.test_loader())):
@@ -322,15 +325,30 @@ class PPVectorTrainer(object):
                 feature = eval_model.backbone(audio).numpy()
                 los = self.loss(output, label)
                 # 计算准确率
-                label = paddle.reshape(label, shape=(-1, 1))
-                acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+                acc = accuracy(input=paddle.nn.functional.softmax(output), label=label.reshape((-1, 1)))
                 accuracies.append(acc.numpy()[0])
                 losses.append(los.numpy()[0])
+                # 模型预测标签
+                pred = paddle.argsort(output, descending=True)[:, 0].numpy().tolist()
+                preds.extend(pred)
+                # 真实标签
+                r_labels.extend(label.numpy().tolist())
                 # 存放特征
                 features = np.concatenate((features, feature)) if features is not None else feature
-                labels = np.concatenate((labels, label)) if labels is not None else label
+                labels = np.concatenate((labels, label.numpy())) if labels is not None else label.numpy()
         loss = float(sum(losses) / len(losses))
         acc = float(sum(accuracies) / len(accuracies))
+        # 计算精确率、召回率、f1_score
+        cm = confusion_matrix(labels, preds)
+        FP = cm.sum(axis=0) - np.diag(cm)
+        FN = cm.sum(axis=1) - np.diag(cm)
+        TP = np.diag(cm)
+        TN = cm.sum() - (FP + FN + TP)
+        # 精确率
+        precision = TP / (TP + FP + 1e-6)
+        # 召回率
+        recall = TP / (TP + FN + 1e-6)
+        f1_score = (2 * precision * recall) / (precision + recall + 1e-13)
         self.model.train()
         if cal_threshold:
             scores, y_true = [], []
@@ -348,7 +366,7 @@ class PPVectorTrainer(object):
             print('找出最优的阈值和对应的准确率...')
             best_acc, threshold = cal_accuracy_threshold(scores, y_true)
             print(f'当阈值为{threshold:.2f}, 两两对比准确率最大，准确率为：{best_acc:.5f}')
-        return loss, acc
+        return loss, acc, np.mean(precision), np.mean(recall), np.mean(f1_score)
 
     def export(self, save_model_path='models/', resume_model='models/ecapa_tdnn_spectrogram/best_model/'):
         """
