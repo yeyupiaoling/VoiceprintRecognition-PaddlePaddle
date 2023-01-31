@@ -13,25 +13,24 @@
 
  - Anaconda 3
  - Python 3.8
- - PaddlePaddle 2.3.2
+ - PaddlePaddle 2.4.1
  - Windows 10 or Ubuntu 18.04
 
 
 # 模型下载
 
-|    模型     |    预处理方法    |                          数据集                           | 类别数量  |  分类准确率  | 两两对比准确率 |   精准率   |   召回率   | F1-score |                             模型下载地址                              |
-|:---------:|:-----------:|:------------------------------------------------------:|:-----:|:-------:|:-------:|:-------:|:-------:|:--------:|:---------------------------------------------------------------:|
-| EcapaTdnn | spectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.95458 | 0.99978 | 0.95905 | 0.95538 | 0.95174  | [点击下载](https://download.csdn.net/download/qq_33200967/86951790) |
-| EcapaTdnn |    fbank    | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.95588 | 0.99978 | 0.96050 | 0.95607 | 0.95249  | [点击下载](https://download.csdn.net/download/qq_33200967/86987768) |
-| EcapaTdnn | spectrogram |                         更大的数据集                         | 6355  | 0.91118 | 0.99990 | 0.85515 | 0.87373 | 0.85649  | [点击下载](https://download.csdn.net/download/qq_33200967/87041912) |
-| EcapaTdnn | spectrogram |                         超大的数据集                         | 13718 | 0.90885 | 0.99994 | 0.86315 | 0.87965 | 0.86342  | [点击下载](https://download.csdn.net/download/qq_33200967/87106989) |
+|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 分类准确率 | 两两对比准确率 | 精准率 | 召回率 | F1-score | 模型下载地址 |
+|:---------:|:--------------:|:------------------------------------------------------:|:----:|:-----:|:-------:|:---:|:---:|:--------:|:------:|
+| EcapaTdnn | MelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) |      |       |         |     |     |          |        |
+| EcapaTdnn | MelSpectrogram |                         更大的数据集                         |      |       |         |     |     |          |        |
+| EcapaTdnn | MelSpectrogram |                         超大的数据集                         |      |       |         |     |     |          |        |
 
 
 ## 安装环境
 
  - 首先安装的是PaddlePaddle的GPU版本，如果已经安装过了，请跳过。
 ```shell
-conda install paddlepaddle-gpu==2.3.2 cudatoolkit=10.2 --channel https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/Paddle/
+conda install paddlepaddle-gpu==2.4.1 cudatoolkit=10.2 --channel https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/Paddle/
 ```
 
  - 安装ppvector库。
