@@ -10,12 +10,13 @@ import paddle
 from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
+from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 from visualdl import LogWriter
 
 from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.collate_fn import collate_fn
-from ppvector.data_utils.featurizer.audio_featurizer import AudioFeaturizer
+from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.data_utils.reader import CustomDataset
 from ppvector.models.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
 from ppvector.models.loss import AAMLoss
@@ -44,6 +45,8 @@ class PPVectorTrainer(object):
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
         self.model = None
         self.test_loader = None
+        # 获取特征器
+        self.audio_featurizer = AudioFeaturizer(feature_conf=self.configs.feature_conf, **self.configs.preprocess_conf)
 
     def __setup_dataloader(self, augment_conf_path=None, is_train=False):
         # 获取训练数据
@@ -54,12 +57,14 @@ class PPVectorTrainer(object):
                 logger.info('数据增强配置文件{}不存在'.format(augment_conf_path))
             augmentation_config = '{}'
         if is_train:
-            self.train_dataset = CustomDataset(preprocess_configs=self.configs.preprocess_conf,
-                                               data_list_path=self.configs.dataset_conf.train_list,
-                                               do_vad=self.configs.dataset_conf.chunk_duration,
+            self.train_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.train_list,
+                                               do_vad=self.configs.dataset_conf.do_vad,
                                                chunk_duration=self.configs.dataset_conf.chunk_duration,
                                                min_duration=self.configs.dataset_conf.min_duration,
                                                augmentation_config=augmentation_config,
+                                               sample_rate=self.configs.dataset_conf.sample_rate,
+                                               use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                               target_dB=self.configs.dataset_conf.target_dB,
                                                mode='train')
             # 设置支持多卡训练
             self.train_batch_sampler = paddle.io.DistributedBatchSampler(dataset=self.train_dataset,
@@ -70,12 +75,14 @@ class PPVectorTrainer(object):
                                            batch_sampler=self.train_batch_sampler,
                                            num_workers=self.configs.dataset_conf.num_workers)
         # 获取测试数据
-        self.test_dataset = CustomDataset(preprocess_configs=self.configs.preprocess_conf,
-                                          data_list_path=self.configs.dataset_conf.test_list,
-                                          do_vad=self.configs.dataset_conf.chunk_duration,
+        self.test_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.test_list,
+                                          do_vad=self.configs.dataset_conf.do_vad,
                                           chunk_duration=self.configs.dataset_conf.chunk_duration,
                                           min_duration=self.configs.dataset_conf.min_duration,
-                                          mode='train')
+                                          sample_rate=self.configs.dataset_conf.sample_rate,
+                                          use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                          target_dB=self.configs.dataset_conf.target_dB,
+                                          mode='eval')
         self.test_loader = DataLoader(dataset=self.test_dataset,
                                       batch_size=self.configs.dataset_conf.batch_size,
                                       collate_fn=collate_fn,
@@ -85,7 +92,8 @@ class PPVectorTrainer(object):
         # 获取模型
         if self.configs.use_model == 'ecapa_tdnn':
             self.ecapa_tdnn = EcapaTdnn(input_size=input_size, **self.configs.model_conf)
-            self.model = SpeakerIdetification(backbone=self.ecapa_tdnn, num_class=self.configs.dataset_conf.num_speakers)
+            self.model = SpeakerIdetification(backbone=self.ecapa_tdnn,
+                                              num_class=self.configs.dataset_conf.num_speakers)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
         # print(self.model)
@@ -124,7 +132,7 @@ class PPVectorTrainer(object):
 
     def __load_checkpoint(self, save_model_path, resume_model):
         last_epoch = -1
-        best_loss = 1e4
+        best_acc = 0
         last_model_dir = os.path.join(save_model_path,
                                       f'{self.configs.use_model}_{self.configs.preprocess_conf.feature_method}',
                                       'last_model')
@@ -139,12 +147,12 @@ class PPVectorTrainer(object):
             with open(os.path.join(resume_model, 'model.state'), 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
                 last_epoch = json_data['last_epoch'] - 1
-                best_loss = json_data['best_loss']
+                best_acc = json_data['accuracy']
             logger.info('成功恢复模型参数和优化方法参数：{}'.format(resume_model))
-        return last_epoch, best_loss
+        return last_epoch, best_acc
 
     # 保存模型
-    def __save_checkpoint(self, save_model_path, epoch_id, best_loss=1e4, best_model=False):
+    def __save_checkpoint(self, save_model_path, epoch_id, best_acc=0., best_model=False):
         if best_model:
             model_path = os.path.join(save_model_path,
                                       f'{self.configs.use_model}_{self.configs.preprocess_conf.feature_method}',
@@ -161,7 +169,7 @@ class PPVectorTrainer(object):
             logger.error(f'保存模型时出现错误，错误信息：{e}')
             return
         with open(os.path.join(model_path, 'model.state'), 'w', encoding='utf-8') as f:
-            f.write('{"last_epoch": %d, "best_loss": %f}' % (epoch_id, best_loss))
+            f.write('{"last_epoch": %d, "accuracy": %f}' % (epoch_id, best_acc))
         if not best_model:
             last_model_path = os.path.join(save_model_path,
                                            f'{self.configs.use_model}_{self.configs.preprocess_conf.feature_method}',
@@ -180,8 +188,9 @@ class PPVectorTrainer(object):
         train_times, accuracies, loss_sum = [], [], []
         start = time.time()
         sum_batch = len(self.train_loader) * self.configs.train_conf.max_epoch
-        for batch_id, (audio, label, audio_lens) in enumerate(self.train_loader()):
-            output = self.model(audio, audio_lens)
+        for batch_id, (audio, label, input_lens_ratio) in enumerate(self.train_loader()):
+            features, _ = self.audio_featurizer(audio, input_lens_ratio)
+            output = self.model(features, input_lens_ratio)
             # 计算损失值
             los = self.loss(output, label)
             los.backward()
@@ -210,6 +219,9 @@ class PPVectorTrainer(object):
                             f'speed: {train_speed:.2f} data/sec, eta: {eta_str}')
                 writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
                 writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
+                # 记录学习率
+                writer.add_scalar('Train/lr', self.scheduler.get_lr(), self.train_step)
+                self.train_step += 1
                 train_times = []
             # 固定步数也要保存一次模型
             if batch_id % 10000 == 0 and batch_id != 0 and local_rank == 0:
@@ -246,7 +258,7 @@ class PPVectorTrainer(object):
         # 获取数据
         self.__setup_dataloader(augment_conf_path=augment_conf_path, is_train=True)
         # 获取模型
-        self.__setup_model(input_size=self.test_dataset.feature_dim, is_train=True)
+        self.__setup_model(input_size=self.audio_featurizer.feature_dim, is_train=True)
 
         # 支持多卡训练
         if nranks > 1 and self.use_gpu:
@@ -256,7 +268,7 @@ class PPVectorTrainer(object):
 
         self.__load_pretrained(pretrained_model=pretrained_model)
         # 加载恢复模型
-        last_epoch, best_loss = self.__load_checkpoint(save_model_path=save_model_path, resume_model=resume_model)
+        last_epoch, best_acc = self.__load_checkpoint(save_model_path=save_model_path, resume_model=resume_model)
 
         test_step, self.train_step = 0, 0
         last_epoch += 1
@@ -272,23 +284,22 @@ class PPVectorTrainer(object):
             # 多卡训练只使用一个进程执行评估和保存模型
             if local_rank == 0:
                 logger.info('=' * 70)
-                loss, acc = self.evaluate(resume_model=None)
-                logger.info('Test epoch: {}, time/epoch: {}, loss: {:.5f}, accuracy: {:.5f}'.format(
-                    epoch_id, str(timedelta(seconds=(time.time() - start_epoch))), loss, acc))
+                loss, acc, precision, recall, f1_score = self.evaluate(resume_model=None)
+                logger.info('Test epoch: {}, time/epoch: {}, loss: {:.5f}, accuracy: {:.5f}, precision: {:.5f}, '
+                            'recall: {:.5f}, f1_score: {:.5f}'.format(epoch_id, str(timedelta(
+                    seconds=(time.time() - start_epoch))), loss, acc, precision, recall, f1_score))
                 logger.info('=' * 70)
                 writer.add_scalar('Test/Accuracy', acc, test_step)
                 writer.add_scalar('Test/Loss', loss, test_step)
                 test_step += 1
                 self.model.train()
-                # 记录学习率
-                writer.add_scalar('Train/lr', self.scheduler.get_lr(), epoch_id)
                 # # 保存最优模型
-                if loss <= best_loss:
-                    best_loss = loss
-                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_loss=loss,
+                if acc >= best_acc:
+                    best_acc = acc
+                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_acc=acc,
                                            best_model=True)
                 # 保存模型
-                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_loss=loss)
+                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_acc=acc)
 
     def evaluate(self, resume_model='models/ecapa_tdnn_spectrogram/best_model/', cal_threshold=False):
         """
@@ -300,7 +311,7 @@ class PPVectorTrainer(object):
         if self.test_loader is None:
             self.__setup_dataloader()
         if self.model is None:
-            self.__setup_model(input_size=self.test_dataset.feature_dim)
+            self.__setup_model(input_size=self.audio_featurizer.feature_dim)
         if resume_model is not None:
             if os.path.isdir(resume_model):
                 resume_model = os.path.join(resume_model, 'model.pdparams')
@@ -314,22 +325,39 @@ class PPVectorTrainer(object):
         else:
             eval_model = self.model
 
-        accuracies, losses = [], []
+        accuracies, losses, preds, r_labels = [], [], [], []
         features, labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio, label, audio_lens) in enumerate(tqdm(self.test_loader())):
-                output = eval_model(audio, audio_lens)
-                feature = eval_model.backbone(audio).numpy()
+            for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.test_loader())):
+                audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
+                output = eval_model(audio_features, input_lens_ratio)
+                feature = eval_model.backbone(audio_features).numpy()
                 los = self.loss(output, label)
                 # 计算准确率
-                label = paddle.reshape(label, shape=(-1, 1))
-                acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
-                features = np.concatenate((features, feature)) if features is not None else feature
-                labels = np.concatenate((labels, label)) if labels is not None else label
+                acc = accuracy(input=paddle.nn.functional.softmax(output), label=label.reshape((-1, 1)))
                 accuracies.append(acc.numpy()[0])
                 losses.append(los.numpy()[0])
+                # 模型预测标签
+                pred = paddle.argsort(output, descending=True)[:, 0].numpy().tolist()
+                preds.extend(pred)
+                # 真实标签
+                r_labels.extend(label.numpy().tolist())
+                # 存放特征
+                features = np.concatenate((features, feature)) if features is not None else feature
+                labels = np.concatenate((labels, label.numpy())) if labels is not None else label.numpy()
         loss = float(sum(losses) / len(losses))
         acc = float(sum(accuracies) / len(accuracies))
+        # 计算精确率、召回率、f1_score
+        cm = confusion_matrix(labels, preds)
+        FP = cm.sum(axis=0) - np.diag(cm)
+        FN = cm.sum(axis=1) - np.diag(cm)
+        TP = np.diag(cm)
+        TN = cm.sum() - (FP + FN + TP)
+        # 精确率
+        precision = TP / (TP + FP + 1e-6)
+        # 召回率
+        recall = TP / (TP + FN + 1e-6)
+        f1_score = (2 * precision * recall) / (precision + recall + 1e-13)
         self.model.train()
         if cal_threshold:
             scores, y_true = [], []
@@ -347,8 +375,7 @@ class PPVectorTrainer(object):
             print('找出最优的阈值和对应的准确率...')
             best_acc, threshold = cal_accuracy_threshold(scores, y_true)
             print(f'当阈值为{threshold:.2f}, 两两对比准确率最大，准确率为：{best_acc:.5f}')
-        return loss, acc
-
+        return loss, acc, np.mean(precision), np.mean(recall), np.mean(f1_score)
 
     def export(self, save_model_path='models/', resume_model='models/ecapa_tdnn_spectrogram/best_model/'):
         """
@@ -358,8 +385,7 @@ class PPVectorTrainer(object):
         :return:
         """
         # 获取模型
-        audio_featurizer = AudioFeaturizer(**self.configs.preprocess_conf)
-        self.__setup_model(input_size=audio_featurizer.feature_dim)
+        self.__setup_model(input_size=self.audio_featurizer.feature_dim)
         # 加载预训练模型
         if os.path.isdir(resume_model):
             resume_model = os.path.join(resume_model, 'model.pdparams')
