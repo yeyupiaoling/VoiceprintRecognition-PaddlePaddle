@@ -28,6 +28,7 @@ preprocess_conf:
   # 音频预处理方法，支持：LogMelSpectrogram、MelSpectrogram、Spectrogram、MFCC
   feature_method: 'MelSpectrogram'
 
+# MelSpectrogram的参数，其他的预处理方法查看对应API设设置参数
 feature_conf:
   sr: 16000
   n_fft: 1024

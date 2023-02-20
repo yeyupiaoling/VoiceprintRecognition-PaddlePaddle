@@ -7,6 +7,7 @@ from datetime import timedelta
 
 import numpy as np
 import paddle
+import yaml
 from paddle.distributed import fleet
 from paddle.io import DataLoader
 from paddle.metric import accuracy
@@ -22,7 +23,7 @@ from ppvector.models.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
 from ppvector.models.loss import AAMLoss
 from ppvector.utils.logger import setup_logger
 from ppvector.utils.lr import cosine_decay_with_warmup
-from ppvector.utils.utils import dict_to_object, cal_accuracy_threshold
+from ppvector.utils.utils import dict_to_object, cal_accuracy_threshold, print_arguments
 
 logger = setup_logger(__name__)
 
@@ -41,6 +42,11 @@ class PPVectorTrainer(object):
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             paddle.device.set_device("cpu")
         self.use_gpu = use_gpu
+        # 读取配置文件
+        if isinstance(configs, str):
+            with open(configs, 'r', encoding='utf-8') as f:
+                configs = yaml.load(f.read(), Loader=yaml.FullLoader)
+            print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
         self.model = None
