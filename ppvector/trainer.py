@@ -110,11 +110,24 @@ class PPVectorTrainer(object):
             self.scheduler = cosine_decay_with_warmup(learning_rate=float(self.configs.optimizer_conf.learning_rate),
                                                       max_epochs=int(self.configs.train_conf.max_epoch * 1.2),
                                                       step_per_epoch=len(self.train_loader))
-            # 优化方法
-            self.optimizer = paddle.optimizer.Momentum(parameters=self.model.parameters(),
+            # 获取优化方法
+            optimizer = self.configs.optimizer_conf.optimizer
+            if optimizer == 'Adam':
+                self.optimizer = paddle.optimizer.Adam(parameters=self.model.parameters(),
                                                        learning_rate=self.scheduler,
-                                                       momentum=0.9,
                                                        weight_decay=float(self.configs.optimizer_conf.weight_decay))
+            elif optimizer == 'AdamW':
+                self.optimizer = paddle.optimizer.AdamW(parameters=self.model.parameters(),
+                                                        learning_rate=self.scheduler,
+                                                        weight_decay=float(self.configs.optimizer_conf.weight_decay))
+            elif optimizer == 'Momentum':
+                self.optimizer = paddle.optimizer.Momentum(parameters=self.model.parameters(),
+                                                           momentum=self.configs.optimizer_conf.momentum,
+                                                           learning_rate=self.scheduler,
+                                                           weight_decay=float(self.configs.optimizer_conf.weight_decay))
+            else:
+                raise Exception(f'不支持优化方法：{optimizer}')
+
 
     def __load_pretrained(self, pretrained_model):
         # 加载预训练模型
