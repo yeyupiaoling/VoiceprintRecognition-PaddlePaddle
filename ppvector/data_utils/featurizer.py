@@ -65,6 +65,6 @@ class AudioFeaturizer(nn.Layer):
         elif self._feature_method == 'Spectrogram':
             return 257
         elif self._feature_method == 'MFCC':
-            return self._feature_conf.n_mels
+            return self._feature_conf.n_mfcc
         else:
             raise Exception('没有{}预处理方法'.format(self._feature_method))
