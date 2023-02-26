@@ -19,9 +19,10 @@
 
 # 模型下载
 
-|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 分类准确率 | 两两对比准确率 | 精准率 | 召回率 | F1-score | 模型下载地址 |
+|    模型     |     预处理方法      |                          数据集                           | 类别数量 | 分类准确率 | 两两对比准确率 | 精准率 | 召回率 | 模型下载地址 |
 |:---------:|:--------------:|:------------------------------------------------------:|:----:|:-----:|:-------:|:---:|:---:|:--------:|:------:|
-| EcapaTdnn | MelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) |  3242    |    0.96419   |   0.99983      |   0.96563  |  0.96213   |      0.95896    |    [点击下载](https://download.csdn.net/download/qq_33200967/86951790)    |
+| EcapaTdnn | MelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) |  3242    |    0.96419   |   0.99983      |   0.96563  |  0.96213   |       [点击下载](https://download.csdn.net/download/qq_33200967/86951790)    |
+| EcapaTdnn | LogMelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) |  3242    |    0.97201  |   0.99986      |  0.96986  | 0.96798  |         [点击下载](https://download.csdn.net/download/qq_33200967/86987768)    |
 | EcapaTdnn | MelSpectrogram |                         更大的数据集                         |  6355    |       |         |     |     |          |        |
 | EcapaTdnn | MelSpectrogram |                         超大的数据集                         |  13718    |       |         |     |     |          |        |
 
