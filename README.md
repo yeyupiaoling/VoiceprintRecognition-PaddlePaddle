@@ -27,8 +27,8 @@
 | EcapaTdnn | LogMelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.97201 | 0.99986 | 0.96986 | 0.96798 |                          [点击下载](https://download.csdn.net/download/qq_33200967/86987768)                           |
 | EcapaTdnn |    Spectrogram    | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  |  0.96636 | 0.99982 | 0.96522 | 0.96283  |     [点击下载](https://download.csdn.net/download/qq_33200967/87527690)    |
 | EcapaTdnn |       MFCC        | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  |  0.97439  | 0.99986  | 0.97412 | 0.97180 |       [点击下载](https://download.csdn.net/download/qq_33200967/87527015)    |
-| EcapaTdnn |  MelSpectrogram   |                         更大的数据集                         | 6355  |         |         |         |         | 即将提供下载，着急可以使用旧分支[release/1.0](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/release/1.0) |        |
-| EcapaTdnn |  MelSpectrogram   |                         超大的数据集                         | 13718 |         |         |         |         |                                                                                                                    |        |
+| EcapaTdnn |  MelSpectrogram   |                         更大的数据集                         | 6355  |  0.90020 |  0.99992 | 0.83658 | 0.85483 |  [点击下载](https://download.csdn.net/download/qq_33200967/86987829)   |   
+| EcapaTdnn |  MelSpectrogram   |                         超大的数据集                         | 13718 |         |         |         |         |                            即将提供下载，着急可以使用旧分支[release/1.0](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/release/1.0)          | 
 
 
 ## 安装环境
