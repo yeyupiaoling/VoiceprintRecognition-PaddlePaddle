@@ -21,15 +21,85 @@
 
 # 模型下载
 
-|    模型     |       预处理方法       |                          数据集                           | 类别数量  |  分类准确率  | 两两对比准确率 |   精准率   |   召回率   |                                                                                        模型下载地址                                                                                         |
-|:---------:|:-----------------:|:------------------------------------------------------:|:-----:|:-------:|:-------:|:-------:|:-------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| EcapaTdnn |  MelSpectrogram   | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.96419 | 0.99983 | 0.96563 | 0.96213 |                                                            [点击下载](https://download.csdn.net/download/qq_33200967/86951790)                                                            |
-| EcapaTdnn | LogMelSpectrogram | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.97201 | 0.99986 | 0.96986 | 0.96798 |                                                            [点击下载](https://download.csdn.net/download/qq_33200967/86987768)                                                            |
-| EcapaTdnn |    Spectrogram    | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.96636 | 0.99982 | 0.96522 | 0.96283 |                                                            [点击下载](https://download.csdn.net/download/qq_33200967/87527690)                                                            |
-| EcapaTdnn |       MFCC        | [中文语音语料数据集](https://github.com/fighting41love/zhvoice) | 3242  | 0.97439 | 0.99986 | 0.97412 | 0.97180 |                                                            [点击下载](https://download.csdn.net/download/qq_33200967/87527015)                                                            |
-| EcapaTdnn |  MelSpectrogram   |                         更大的数据集                         | 6355  | 0.90383 | 0.99992 | 0.84222 | 0.86070 |                                                            [点击下载](https://download.csdn.net/download/qq_33200967/87041912)                                                            |   
-| EcapaTdnn |  MelSpectrogram   |                         超大的数据集                         | 13718 | 0.92042 | 0.99995 | 0.87236 | 0.89033 | [点击下载](https://download.csdn.net/download/qq_33200967/87106989)， 可能没有审核完成，着急可以使用旧分支[release/1.0](https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/release/1.0) | 
-
+<table align="center">
+<tr>
+  <th align="center">模型</th>
+  <th align="center">预处理方法</th>
+  <th align="center">数据集</th>
+  <th align="center">类别数量</th>
+  <th align="center">分类准确率</th>
+  <th align="center">两两对比准确率</th>
+  <th align="center">精准率</th>
+  <th align="center">召回率</th>
+  <th align="center">模型下载地址</th>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">MelSpectrogram</td>
+  <td align="center"><a href="https://github.com/fighting41love/zhvoice">中文语音语料数据集</a></td>
+  <td align="center">3242</td>
+  <td align="center">0.96419</td>
+  <td align="center">0.99983</td>
+  <td align="center">0.96563</td>
+  <td align="center">0.96213</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/86951790">点击下载</a></td>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">LogMelSpectrogram</td>
+  <td align="center"><a href="https://github.com/fighting41love/zhvoice">中文语音语料数据集</a></td>
+  <td align="center">3242</td>
+  <td align="center">0.97201</td>
+  <td align="center">0.99986</td>
+  <td align="center">0.96986</td>
+  <td align="center">0.96798</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/86987768">点击下载</a></td>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">Spectrogram</td>
+  <td align="center"><a href="https://github.com/fighting41love/zhvoice">中文语音语料数据集</a></td>
+  <td align="center">3242</td>
+  <td align="center">0.96636</td>
+  <td align="center">0.99982</td>
+  <td align="center">0.96522</td>
+  <td align="center">0.96283</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87527690">点击下载</a></td>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">MFCC</td>
+  <td align="center"><a href="https://github.com/fighting41love/zhvoice">中文语音语料数据集</a></td>
+  <td align="center">3242</td>
+  <td align="center">0.97439</td>
+  <td align="center">0.99986</td>
+  <td align="center">0.97412</td>
+  <td align="center">0.97180</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87527015">点击下载</a></td>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">MelSpectrogram</td>
+  <td align="center">更大的数据集</td>
+  <td align="center">6355</td>
+  <td align="center">0.90383</td>
+  <td align="center">0.99992</td>
+  <td align="center">0.84222</td>
+  <td align="center">0.86070</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87041912">点击下载</a></td>
+</tr>
+<tr>
+  <td align="center">EcapaTdnn</td>
+  <td align="center">MelSpectrogram</td>
+  <td align="center">超大的数据集</td>
+  <td align="center">13718</td>
+  <td align="center">0.92042</td>
+  <td align="center">0.99995</td>
+  <td align="center">0.87236</td>
+  <td align="center">0.89033</td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87106989">点击下载</a>，可能没有审核完成，着急可以使用旧分支<a href="https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/release/1.0">release/1.0</a></td>
+</tr>
+</table>
 
 ## 安装环境
 
