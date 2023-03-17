@@ -90,7 +90,7 @@
   <td align="center">0.98540</td>
   <td align="center">0.00633</td>
   <td align="center">0.02093</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87106989">点击下载</a>，可能没有审核完成，着急可以使用旧分支<a href="https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle/tree/release/1.0">release/1.0</a></td>
+  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87106989">点击下载</a></td>
 </tr>
 </table>
 
