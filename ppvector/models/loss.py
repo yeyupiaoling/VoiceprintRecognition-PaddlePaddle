@@ -50,3 +50,53 @@ class AAMLoss(nn.Layer):
         predictions = F.log_softmax(predictions, axis=1)
         loss = self.criterion(predictions, targets) / targets.sum()
         return loss
+
+
+class AMLoss(nn.Layer):
+    def __init__(self, margin=0.2, scale=30):
+        super(AMLoss, self).__init__()
+        self.m = margin
+        self.s = scale
+        self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
+
+    def forward(self, outputs, targets):
+        delt_costh = paddle.zeros(outputs.shape)
+        for i, index in enumerate(targets):
+            delt_costh[i, index] = self.m
+        costh_m = outputs - delt_costh
+        predictions = self.s * costh_m
+        loss = self.criterion(predictions, targets) / targets.shape[0]
+        return loss
+
+
+class ARMLoss(nn.Layer):
+    def __init__(self, margin=0.2, scale=30):
+        super(ARMLoss, self).__init__()
+        self.m = margin
+        self.s = scale
+        self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
+
+    def forward(self, outputs, targets):
+        delt_costh = paddle.zeros(outputs.shape)
+        for i, index in enumerate(targets):
+            delt_costh[i, index] = self.m
+        costh_m = outputs - delt_costh
+        costh_m_s = self.s * costh_m
+        delt_costh_m_s = paddle.zeros([outputs.shape[0], 1], dtype=paddle.float32)
+        for i, index in enumerate(targets):
+            delt_costh_m_s[i] = costh_m_s[i, index]
+        delt_costh_m_s = delt_costh_m_s.tile([1, costh_m_s.shape[1]])
+        costh_m_s_reduct = costh_m_s - delt_costh_m_s
+        predictions = paddle.where(costh_m_s_reduct < 0.0, paddle.zeros_like(costh_m_s), costh_m_s)
+        loss = self.criterion(predictions, targets) / targets.shape[0]
+        return loss
+
+
+class CELoss(nn.Layer):
+    def __init__(self):
+        super(CELoss, self).__init__()
+        self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
+
+    def forward(self, outputs, targets):
+        loss = self.criterion(outputs, targets) / targets.shape[0]
+        return loss

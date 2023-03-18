@@ -19,8 +19,12 @@ from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.data_utils.reader import CustomDataset
 from ppvector.metric.metrics import TprAtFpr
-from ppvector.models.ecapa_tdnn import EcapaTdnn, SpeakerIdetification
-from ppvector.models.loss import AAMLoss
+from ppvector.models.ecapa_tdnn import EcapaTdnn
+from ppvector.models.fc import SpeakerIdetification
+from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss
+from ppvector.models.res2net import Res2Net
+from ppvector.models.resnet_se import ResNetSE
+from ppvector.models.tdnn import TDNN
 from ppvector.utils.logger import setup_logger
 from ppvector.utils.lr import cosine_decay_with_warmup
 from ppvector.utils.utils import dict_to_object, print_arguments
@@ -95,16 +99,34 @@ class PPVectorTrainer(object):
                                       num_workers=self.configs.dataset_conf.num_workers)
 
     def __setup_model(self, input_size, is_train=False):
+        use_loss = self.configs.get('use_loss', 'AAMLoss')
         # 获取模型
-        if self.configs.use_model == 'ecapa_tdnn':
-            self.ecapa_tdnn = EcapaTdnn(input_size=input_size, **self.configs.model_conf)
-            self.model = SpeakerIdetification(backbone=self.ecapa_tdnn,
-                                              num_class=self.configs.dataset_conf.num_speakers)
+        if self.configs.use_model == 'EcapaTdnn' or self.configs.use_model == 'ecapa_tdnn':
+            backbone = EcapaTdnn(input_size=input_size, **self.configs.model_conf)
+        elif self.configs.use_model == 'Res2Net':
+            backbone = Res2Net(input_size=input_size, **self.configs.model_conf)
+        elif self.configs.use_model == 'ResNetSE':
+            backbone = ResNetSE(input_size=input_size, **self.configs.model_conf)
+        elif self.configs.use_model == 'TDNN':
+            backbone = TDNN(input_size=input_size, **self.configs.model_conf)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
+
+        self.model = SpeakerIdetification(backbone=backbone,
+                                          num_class=self.configs.dataset_conf.num_speakers,
+                                          loss_type=use_loss)
         # print(self.model)
         # 获取损失函数
-        self.loss = AAMLoss()
+        if use_loss == 'AAMLoss':
+            self.loss = AAMLoss()
+        elif use_loss == 'AMLoss':
+            self.loss = AMLoss()
+        elif use_loss == 'ARMLoss':
+            self.loss = ARMLoss()
+        elif use_loss == 'CELoss':
+            self.loss = CELoss()
+        else:
+            raise Exception(f'没有{use_loss}损失函数！')
         if is_train:
             # 学习率衰减
             self.scheduler = cosine_decay_with_warmup(learning_rate=float(self.configs.optimizer_conf.learning_rate),
