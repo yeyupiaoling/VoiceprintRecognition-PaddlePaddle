@@ -58,7 +58,7 @@ class Bottle2neck(nn.Layer):
         out = self.bn1(out)
         out = self.relu(out)
 
-        spx = paddle.split(out, self.width, 1)
+        spx = paddle.split(out, self.scale, 1)
         for i in range(self.nums):
             if i == 0 or self.stype == 'stage':
                 sp = spx[i]
@@ -165,11 +165,10 @@ class Res2Net(nn.Layer):
         x = self.layer3(x)
         x = self.layer4(x)
 
-        x = x.reshape(x.shape[0], -1, x.shape[-1])
+        x = x.reshape([x.shape[0], -1, x.shape[-1]])
 
-        x = self.pooling(x)
-        x = self.bn2(x)
-        x = self.linear(x)
-        x = self.bn3(x)
-
-        return x
+        out = self.pooling(x)
+        out = self.pooling_bn(out)
+        # Final linear transformation
+        out = self.fc(out).squeeze(-1)  # (N, emb_size, 1) -> (N, emb_size)
+        return out

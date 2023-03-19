@@ -62,4 +62,4 @@ train_conf:
 # 所使用的模型，支持EcapaTdnn、TDNN、Res2Net、ResNetSE
 use_model: 'EcapaTdnn'
 # 所使用的损失函数，支持AAMLoss、AMLoss、ARMLoss、CELoss
-use_loss: 'ARMLoss'
+use_loss: 'AAMLoss'
