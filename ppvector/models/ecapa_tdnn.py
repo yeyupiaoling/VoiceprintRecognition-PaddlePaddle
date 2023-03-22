@@ -211,8 +211,8 @@ class EcapaTdnn(nn.Layer):
         cat_channels = channels[-1]
         if pooling_type == "ASP":
             self.asp = AttentiveStatisticsPooling(channels[-1],
-                                                      attention_channels=attention_channels,
-                                                      global_context=global_context)
+                                                  attention_channels=attention_channels,
+                                                  global_context=global_context)
             self.asp_bn = BatchNorm1d(input_size=channels[-1] * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels[-1] * 2,

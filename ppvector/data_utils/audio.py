@@ -3,12 +3,11 @@ import io
 import os
 import random
 
-import ffmpeg
 import numpy as np
 import resampy
 import soundfile
 
-from ppvector.data_utils.utils import buf_to_float, vad
+from ppvector.data_utils.utils import buf_to_float, vad, decode_audio
 
 
 class AudioSegment(object):
@@ -55,8 +54,8 @@ class AudioSegment(object):
     @classmethod
     def from_file(cls, file):
         """从音频文件创建音频段
-        
-        :param file: 文件路径
+
+        :param file: 文件路径，或者文件对象
         :type file: str
         :return: 音频片段实例
         :rtype: AudioSegment
@@ -65,12 +64,9 @@ class AudioSegment(object):
         try:
             samples, sample_rate = soundfile.read(file, dtype='float32')
         except:
-            # 使用ffmpeg读取音频，以支持更多格式数据
+            # 支持更多格式数据
             sample_rate = 16000
-            out, _ = (ffmpeg.input(file, threads=0)
-                      .output("-", format="s16le", acodec="pcm_s16le", ac=1, ar=sample_rate)
-                      .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True))
-            samples = np.frombuffer(out, np.int16).flatten().astype(np.float32) / 32768.0
+            samples = decode_audio(file=file, sample_rate=sample_rate)
         return cls(samples, sample_rate)
 
     @classmethod
@@ -156,7 +152,7 @@ class AudioSegment(object):
         :type *segments: tuple of AudioSegment
         :return: Audio segment instance as concatenating results.
         :rtype: AudioSegment
-        :raises ValueError: If the number of segments is zero, or if the 
+        :raises ValueError: If the number of segments is zero, or if the
                             sample_rate of any segments does not match.
         :raises TypeError: If any segment is not AudioSegment instance.
         """
@@ -188,7 +184,7 @@ class AudioSegment(object):
 
     def to_wav_file(self, filepath, dtype='float32'):
         """保存音频段到磁盘为wav文件
-        
+
         :param filepath: WAV文件路径或文件对象，以保存音频段
         :type filepath: str|file
         :param dtype: Subtype for audio file. Options: 'int16', 'int32',
@@ -228,7 +224,7 @@ class AudioSegment(object):
 
     def to_bytes(self, dtype='float32'):
         """创建包含音频内容的字节字符串
-        
+
         :param dtype: Data type for export samples. Options: 'int16', 'int32',
                       'float32', 'float64'. Default is 'float32'.
         :type dtype: str
@@ -254,11 +250,11 @@ class AudioSegment(object):
         """对音频施加分贝增益。
 
         Note that this is an in-place transformation.
-        
+
         :param gain: Gain in decibels to apply to samples. 
         :type gain: float|1darray
         """
-        self._samples *= 10.**(gain / 20.)
+        self._samples *= 10. ** (gain / 20.)
 
     def change_speed(self, speed_rate):
         """通过线性插值改变音频速度

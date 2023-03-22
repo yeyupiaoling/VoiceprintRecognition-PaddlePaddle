@@ -1,3 +1,7 @@
+import io
+import itertools
+
+import av
 import librosa
 import numpy as np
 import paddle
@@ -62,25 +66,55 @@ def concatenate(wave, overlap=200):
     return unfolded[:end]
 
 
-def cmvn_floating_kaldi(x, LC, RC, norm_vars=True):
-    """Mean and variance normalization over a floating window.
-    x is the feature matrix (nframes x dim)
-    LC, RC are the number of frames to the left and right defining the floating
-    window around the current frame. This function uses Kaldi-like treatment of
-    the initial and final frames: Floating windows stay of the same size and
-    for the initial and final frames are not centered around the current frame
-    but shifted to fit in at the beginning or the end of the feature segment.
-    Global normalization is used if nframes is less than LC+RC+1.
+def decode_audio(file, sample_rate: int = 16000):
+    """读取音频，主要用于兜底读取，支持各种数据格式
+
+    Args:
+      file: Path to the input file or a file-like object.
+      sample_rate: Resample the audio to this sample rate.
+
+    Returns:
+      A float32 Numpy array.
     """
-    N, dim = x.shape
-    win_len = min(len(x), LC + RC + 1)
-    win_start = np.maximum(np.minimum(np.arange(-LC, N - LC), N - win_len), 0)
-    f = np.r_[np.zeros((1, dim)), np.cumsum(x, 0)]
-    x = x - (f[win_start + win_len] - f[win_start]) / win_len
-    if norm_vars:
-        f = np.r_[np.zeros((1, dim)), np.cumsum(x ** 2, 0)]
-        x /= np.sqrt((f[win_start + win_len] - f[win_start]) / win_len)
-    return x
+    resampler = av.audio.resampler.AudioResampler(format="s16", layout="mono", rate=sample_rate)
+
+    raw_buffer = io.BytesIO()
+    dtype = None
+
+    with av.open(file, metadata_errors="ignore") as container:
+        frames = container.decode(audio=0)
+        frames = _group_frames(frames, 500000)
+        frames = _resample_frames(frames, resampler)
+
+        for frame in frames:
+            array = frame.to_ndarray()
+            dtype = array.dtype
+            raw_buffer.write(array)
+
+    audio = np.frombuffer(raw_buffer.getbuffer(), dtype=dtype)
+
+    # Convert s16 back to f32.
+    return audio.astype(np.float32) / 32768.0
+
+
+def _group_frames(frames, num_samples=None):
+    fifo = av.audio.fifo.AudioFifo()
+
+    for frame in frames:
+        frame.pts = None  # Ignore timestamp check.
+        fifo.write(frame)
+
+        if num_samples is not None and fifo.samples >= num_samples:
+            yield fifo.read()
+
+    if fifo.samples > 0:
+        yield fifo.read()
+
+
+def _resample_frames(frames, resampler):
+    # Add None to flush the resampler.
+    for frame in itertools.chain(frames, [None]):
+        yield from resampler.resample(frame)
 
 
 # 将音频流转换为numpy
