@@ -343,7 +343,7 @@ class PPVectorTrainer(object):
                 # 保存模型
                 self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_eer=eer)
 
-    def evaluate(self, resume_model='models/ecapa_tdnn_MelSpectrogram/best_model/', save_image_path=None):
+    def evaluate(self, resume_model='models/EcapaTdnn_MelSpectrogram/best_model/', save_image_path=None):
         """
         评估模型
         :param resume_model: 所使用的模型
@@ -407,7 +407,7 @@ class PPVectorTrainer(object):
             logger.info(f"结果图以保存在：{os.path.join(save_image_path, 'result.png')}")
         return tpr, fpr, eer, threshold
 
-    def export(self, save_model_path='models/', resume_model='models/ecapa_tdnn_MelSpectrogram/best_model/'):
+    def export(self, save_model_path='models/', resume_model='models/EcapaTdnn_MelSpectrogram/best_model/'):
         """
         导出预测模型
         :param save_model_path: 模型保存的路径

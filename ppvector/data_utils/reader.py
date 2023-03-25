@@ -53,11 +53,6 @@ class CustomDataset(Dataset):
             audio_segment.normalize(target_db=self._target_dB)
         # 音频增强
         self._augmentation_pipeline.transform_audio(audio_segment)
-        # 对小于训练长度的复制补充
-        num_chunk_samples = int(self.chunk_duration * audio_segment.sample_rate)
-        if audio_segment.num_samples < num_chunk_samples:
-            shortage = num_chunk_samples - audio_segment.num_samples
-            audio_segment.pad_silence(duration=float(shortage / audio_segment.sample_rate * 1.1), sides='end')
         # 裁剪需要的数据
         audio_segment.crop(duration=self.chunk_duration, mode=self.mode)
         return np.array(audio_segment.samples, dtype=np.float32), np.array(int(label), dtype=np.int64)

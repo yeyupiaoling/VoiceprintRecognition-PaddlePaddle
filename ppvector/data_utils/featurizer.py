@@ -2,8 +2,6 @@ import paddle
 from paddle import nn
 from paddle.audio.features import LogMelSpectrogram, MelSpectrogram, Spectrogram, MFCC
 
-from ppvector.data_utils.utils import make_non_pad_mask
-
 
 class AudioFeaturizer(nn.Layer):
     """音频特征器
@@ -35,7 +33,7 @@ class AudioFeaturizer(nn.Layer):
         :param waveforms: Audio segment to extract features from.
         :type waveforms: AudioSegment
         :param input_lens_ratio: input length ratio
-        :type input_lens_ratio: list
+        :type input_lens_ratio: tensor
         :return: Spectrogram audio feature in 2darray.
         :rtype: ndarray
         """
@@ -45,11 +43,17 @@ class AudioFeaturizer(nn.Layer):
         mean = paddle.mean(feature, 1, keepdim=True)
         std = paddle.std(feature, 1, keepdim=True)
         feature = (feature - mean) / (std + 1e-5)
-        input_lens = input_lens_ratio * feature.shape[1]
-        input_lens = input_lens.astype(paddle.int32)
-        masks = make_non_pad_mask(input_lens).astype(paddle.float32).unsqueeze(-1)
-        feature = feature * masks
-        return feature, input_lens
+        # 对掩码比例进行扩展
+        input_lens = (input_lens_ratio * feature.shape[1]).astype(paddle.int32)
+        mask_lens = input_lens.unsqueeze(1)
+        # 生成掩码张量
+        idxs = paddle.arange(feature.shape[1])
+        idxs = idxs.tile([feature.shape[0], 1])
+        mask = idxs < mask_lens
+        mask = mask.unsqueeze(-1)
+        # 对特征进行掩码操作
+        feature_masked = paddle.where(mask, feature, paddle.zeros_like(feature))
+        return feature_masked, input_lens
 
     @property
     def feature_dim(self):
