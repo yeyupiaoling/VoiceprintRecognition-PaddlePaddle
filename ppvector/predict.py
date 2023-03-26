@@ -193,6 +193,8 @@ class PPVectorPredictor:
             audio_segment = AudioSegment.from_bytes(audio_data)
         else:
             raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
+        assert audio_segment.duration >= self.configs.dataset_conf.min_duration, \
+            f'音频太短，最小应该为{self.configs.dataset_conf.min_duration}s，当前音频为{audio_segment.duration}s'
         # 重采样
         if audio_segment.sample_rate != self.configs.dataset_conf.sample_rate:
             audio_segment.resample(self.configs.dataset_conf.sample_rate)
