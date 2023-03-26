@@ -66,10 +66,13 @@ class PPVectorTrainer(object):
             if augment_conf_path is not None and not os.path.exists(augment_conf_path):
                 logger.info('数据增强配置文件{}不存在'.format(augment_conf_path))
             augmentation_config = '{}'
+        # 兼容旧的配置文件
+        if 'max_duration' not in self.configs.dataset_conf:
+            self.configs.dataset_conf.max_duration = self.configs.dataset_conf.chunk_duration
         if is_train:
             self.train_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.train_list,
                                                do_vad=self.configs.dataset_conf.do_vad,
-                                               chunk_duration=self.configs.dataset_conf.chunk_duration,
+                                               max_duration=self.configs.dataset_conf.max_duration,
                                                min_duration=self.configs.dataset_conf.min_duration,
                                                augmentation_config=augmentation_config,
                                                sample_rate=self.configs.dataset_conf.sample_rate,
@@ -87,7 +90,7 @@ class PPVectorTrainer(object):
         # 获取测试数据
         self.test_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.test_list,
                                           do_vad=self.configs.dataset_conf.do_vad,
-                                          chunk_duration=self.configs.dataset_conf.chunk_duration,
+                                          max_duration=self.configs.dataset_conf.max_duration,
                                           min_duration=self.configs.dataset_conf.min_duration,
                                           sample_rate=self.configs.dataset_conf.sample_rate,
                                           use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,

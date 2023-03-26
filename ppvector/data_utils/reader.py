@@ -13,16 +13,29 @@ class CustomDataset(Dataset):
     def __init__(self,
                  data_list_path,
                  do_vad=True,
-                 chunk_duration=3,
+                 max_duration=3,
                  min_duration=0.5,
                  augmentation_config='{}',
                  mode='train',
                  sample_rate=16000,
                  use_dB_normalization=True,
                  target_dB=-20):
+        """音频数据加载器
+
+        Args:
+            data_list_path: 包含音频路径和标签的数据列表文件的路径
+            do_vad: 是否对音频进行语音活动检测（VAD）来裁剪静音部分
+            max_duration: 最长的音频长度，大于这个长度会裁剪掉
+            min_duration: 过滤最短的音频长度
+            augmentation_config: 用于指定音频增强的配置
+            mode: 数据集模式。在训练模式下，数据集可能会进行一些数据增强的预处理
+            sample_rate: 采样率
+            use_dB_normalization: 是否对音频进行音量归一化
+            target_dB: 音量归一化的大小
+        """
         super(CustomDataset, self).__init__()
         self.do_vad = do_vad
-        self.chunk_duration = chunk_duration
+        self.max_duration = max_duration
         self.min_duration = min_duration
         self.mode = mode
         self._target_sample_rate = sample_rate
@@ -54,7 +67,7 @@ class CustomDataset(Dataset):
         # 音频增强
         self._augmentation_pipeline.transform_audio(audio_segment)
         # 裁剪需要的数据
-        audio_segment.crop(duration=self.chunk_duration, mode=self.mode)
+        audio_segment.crop(duration=self.max_duration, mode=self.mode)
         return np.array(audio_segment.samples, dtype=np.float32), np.array(int(label), dtype=np.int64)
 
     def __len__(self):

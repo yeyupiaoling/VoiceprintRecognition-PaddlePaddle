@@ -6,10 +6,10 @@ from paddle.audio.features import LogMelSpectrogram, MelSpectrogram, Spectrogram
 class AudioFeaturizer(nn.Layer):
     """音频特征器
 
+    :param feature_method: 所使用的预处理方法
+    :type feature_method: str
     :param feature_conf: 预处理方法的参数
     :type feature_conf: dict
-    :param sample_rate: 用于训练的音频的采样率
-    :type sample_rate: int
     """
 
     def __init__(self, feature_method='MelSpectrogram', feature_conf={}):
