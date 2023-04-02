@@ -157,7 +157,7 @@ class PPVectorPredictor:
     def __retrieval(self, np_feature):
         labels = []
         for feature in np_feature:
-            similarity = cosine_similarity(self.audio_feature, feature.reshape(1, -1)).squeeze()
+            similarity = cosine_similarity(self.audio_feature, feature[np.newaxis, :]).squeeze()
             abs_similarity = np.abs(similarity)
             # 获取候选索引
             if len(abs_similarity) < self.cdd_num:

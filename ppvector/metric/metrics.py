@@ -23,16 +23,19 @@ class TprAtFpr(object):
         self.neg_score_list = []
 
     def calculate_eer(self, tprs, fprs):
+        # 计算EER
         n = len(tprs)
         eer = 1.0
         index = 0
         for i in range(n):
+            # 计算FPR和TPR
             if fprs[i] + (1 - tprs[i]) < eer:
                 eer = fprs[i] + (1 - tprs[i])
                 index = i
         return eer, index
 
     def calculate(self):
+        # 计算TPR和FPR
         tprs, fprs, thresholds = [], [], []
         pos_score_list = np.array(self.pos_score_list)
         neg_score_list = np.array(self.neg_score_list)
@@ -45,11 +48,13 @@ class TprAtFpr(object):
             logger.warning(msg)
             return tprs, fprs, thresholds, None, None
         for i in range(0, 100):
+            # 计算FPR和TPR
             threshold = i / 100.
             tpr = np.sum(pos_score_list > threshold) / len(pos_score_list)
             fpr = np.sum(neg_score_list > threshold) / len(neg_score_list)
             tprs.append(tpr)
             fprs.append(fpr)
             thresholds.append(threshold)
+        # 计算EER
         eer, index = self.calculate_eer(fprs=fprs, tprs=tprs)
         return tprs, fprs, thresholds, eer, index

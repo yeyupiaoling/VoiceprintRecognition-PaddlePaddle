@@ -1,6 +1,8 @@
 from setuptools import setup, find_packages
 
-VERSION = "0.3.5"
+import ppvector
+
+VERSION = ppvector.__version__
 
 
 def readme():
