@@ -47,11 +47,7 @@ optimizer_conf:
   weight_decay: 1e-6
 
 model_conf:
-  lin_neurons: 192
-  channels: [512, 512, 512, 512, 1536]
-  kernel_sizes: [5, 3, 3, 3, 1]
-  dilations: [1, 2, 3, 4, 1]
-#  所使用的池化层，支持ASP、SAP、TSP、TAP
+  # 所使用的池化层，支持ASP、SAP、TSP、TAP
   pooling_type: 'ASP'
 
 train_conf:
