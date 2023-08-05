@@ -1,7 +1,7 @@
 import paddle
 import paddle.nn as nn
 
-from ppvector.models.pooling import AttentiveStatisticsPooling, SelfAttentivePooling
+from ppvector.models.pooling import AttentiveStatisticsPooling, SelfAttentivePooling, TemporalStatsPool
 from ppvector.models.pooling import TemporalAveragePooling, TemporalStatisticsPooling
 from ppvector.models.utils import BatchNorm1d, Conv1d, TDNNBlock, length_to_mask
 
@@ -146,7 +146,7 @@ class EcapaTdnn(nn.Layer):
     def __init__(
             self,
             input_size,
-            lin_neurons=192,
+            embd_dim=192,
             pooling_type="ASP",
             activation=nn.ReLU,
             channels=[512, 512, 512, 512, 1536],
@@ -161,7 +161,7 @@ class EcapaTdnn(nn.Layer):
            whose url is: https://arxiv.org/abs/2005.07143
         Args:
             input_size (_type_): input fature dimension
-            lin_neurons (int, optional): speaker embedding size. Defaults to 192.
+            embd_dim (int, optional): speaker embedding size. Defaults to 192.
             activation (paddle.nn.class, optional): activation function. Defaults to nn.ReLU.
             channels (list, optional): inter embedding dimension. Defaults to [512, 512, 512, 512, 1536].
             kernel_sizes (list, optional): kernel size of 1-d convolution in TDNN block . Defaults to [5, 3, 3, 3, 1].
@@ -177,7 +177,7 @@ class EcapaTdnn(nn.Layer):
         self.input_size = input_size
         self.channels = channels
         self.blocks = nn.LayerList()
-        self.emb_size = lin_neurons
+        self.emb_size = embd_dim
 
         # The initial TDNN layer
         self.blocks.append(
@@ -234,6 +234,13 @@ class EcapaTdnn(nn.Layer):
                              kernel_size=1)
         elif pooling_type == "TSP":
             self.asp = TemporalStatisticsPooling()
+            self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
+            # Final linear transformation
+            self.fc = Conv1d(in_channels=cat_channels * 2,
+                             out_channels=self.emb_size,
+                             kernel_size=1)
+        elif pooling_type == "TSTP":
+            self.asp = TemporalStatsPool()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,

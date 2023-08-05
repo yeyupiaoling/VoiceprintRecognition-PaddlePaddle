@@ -1,5 +1,6 @@
 import paddle
 from paddle import nn
+import paddleaudio.compliance.kaldi as Kaldi
 from paddle.audio.features import LogMelSpectrogram, MelSpectrogram, Spectrogram, MFCC
 
 
@@ -8,22 +9,22 @@ class AudioFeaturizer(nn.Layer):
 
     :param feature_method: 所使用的预处理方法
     :type feature_method: str
-    :param feature_conf: 预处理方法的参数
-    :type feature_conf: dict
+    :param method_args: 预处理方法的参数
+    :type method_args: dict
     """
 
-    def __init__(self, feature_method='MelSpectrogram', feature_conf={}):
+    def __init__(self, feature_method='MelSpectrogram', method_args={}):
         super().__init__()
-        self._feature_conf = feature_conf
+        self._method_args = method_args
         self._feature_method = feature_method
         if feature_method == 'LogMelSpectrogram':
-            self.feat_fun = LogMelSpectrogram(**feature_conf)
+            self.feat_fun = LogMelSpectrogram(**method_args)
         elif feature_method == 'MelSpectrogram':
-            self.feat_fun = MelSpectrogram(**feature_conf)
+            self.feat_fun = MelSpectrogram(**method_args)
         elif feature_method == 'Spectrogram':
-            self.feat_fun = Spectrogram(**feature_conf)
+            self.feat_fun = Spectrogram(**method_args)
         elif feature_method == 'MFCC':
-            self.feat_fun = MFCC(**feature_conf)
+            self.feat_fun = MFCC(**method_args)
         else:
             raise Exception(f'预处理方法 {self._feature_method} 不存在!')
 
@@ -63,12 +64,35 @@ class AudioFeaturizer(nn.Layer):
         :rtype: int
         """
         if self._feature_method == 'LogMelSpectrogram':
-            return self._feature_conf.n_mels
+            return self._method_args.get('n_mels', 128)
         elif self._feature_method == 'MelSpectrogram':
-            return self._feature_conf.n_mels
+            return self._method_args.get('n_mels', 64)
         elif self._feature_method == 'Spectrogram':
-            return self._feature_conf.n_fft // 2 + 1
+            return self._method_args.get('n_fft', 512) // 2 + 1
         elif self._feature_method == 'MFCC':
-            return self._feature_conf.n_mfcc
+            return self._method_args.get('n_mfcc', 40)
+        elif self._feature_method == 'Fbank':
+            return self._method_args.get('num_mel_bins', 23)
         else:
             raise Exception('没有{}预处理方法'.format(self._feature_method))
+
+
+class KaldiFbank(nn.Layer):
+    def __init__(self, **kwargs):
+        super(KaldiFbank, self).__init__()
+        self.kwargs = kwargs
+
+    def forward(self, waveforms):
+        """
+        :param waveforms: [Batch, Length]
+        :return: [Batch, Length, Feature]
+        """
+        log_fbanks = []
+        for waveform in waveforms:
+            if len(waveform.shape) == 1:
+                waveform = waveform.unsqueeze(0)
+            log_fbank = Kaldi.fbank(waveform, **self.kwargs)
+            log_fbank = log_fbank.transpose(0, 1)
+            log_fbanks.append(log_fbank)
+        log_fbank = paddle.stack(log_fbanks)
+        return log_fbank

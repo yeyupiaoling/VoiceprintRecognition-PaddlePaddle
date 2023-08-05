@@ -6,14 +6,16 @@ from io import BufferedReader
 import numpy as np
 import paddle
 import yaml
+import paddle.nn as nn
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
 from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.audio import AudioSegment
 from ppvector.data_utils.featurizer import AudioFeaturizer
+from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
-from ppvector.models.fc import SpeakerIdetification
+from ppvector.models.eres2net import ERes2Net
 from ppvector.models.res2net import Res2Net
 from ppvector.models.resnet_se import ResNetSE
 from ppvector.models.tdnn import TDNN
@@ -54,22 +56,26 @@ class PPVectorPredictor:
             print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
-        self._audio_featurizer = AudioFeaturizer(feature_conf=self.configs.feature_conf, **self.configs.preprocess_conf)
+        self._audio_featurizer = AudioFeaturizer(method_args=self.configs.feature_conf, **self.configs.preprocess_conf)
         # 创建模型
         if not os.path.exists(model_path):
             raise Exception("模型文件不存在，请检查{}是否存在！".format(model_path))
         # 获取模型
-        if self.configs.use_model == 'EcapaTdnn' or self.configs.use_model == 'ecapa_tdnn':
-            backbone = EcapaTdnn(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf)
+        if self.configs.use_model == 'ERes2Net':
+            backbone = ERes2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
+        elif self.configs.use_model == 'CAM++':
+            backbone = CAMPPlus(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
+        elif self.configs.use_model == 'EcapaTdnn':
+            backbone = EcapaTdnn(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'Res2Net':
-            backbone = Res2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf)
+            backbone = Res2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'ResNetSE':
-            backbone = ResNetSE(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf)
+            backbone = ResNetSE(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'TDNN':
-            backbone = TDNN(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf)
+            backbone = TDNN(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         else:
             raise Exception(f'{self.configs.use_model} 模型不存在！')
-        model = SpeakerIdetification(backbone=backbone, num_class=self.configs.dataset_conf.num_speakers)
+        model = nn.Sequential(backbone)
         # 加载模型
         if os.path.isdir(model_path):
             model_path = os.path.join(model_path, 'model.pdparams')
@@ -77,7 +83,7 @@ class PPVectorPredictor:
         model.set_state_dict(paddle.load(model_path))
         print(f"成功加载模型参数：{model_path}")
         model.eval()
-        self.predictor = model.backbone
+        self.predictor = model
 
         # 声纹库的声纹特征
         self.audio_feature = None

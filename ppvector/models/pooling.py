@@ -121,3 +121,23 @@ class AttentiveStatisticsPooling(nn.Layer):
 
         return pooled_stats
 
+
+class TemporalStatsPool(nn.Layer):
+    """
+    Temporal statistics pooling, concatenate mean and std, which is used in
+    x-vector
+    Comment: simple concatenation can not make full use of both statistics
+    """
+
+    def __init__(self):
+        super(TemporalStatsPool, self).__init__()
+
+    def forward(self, x):
+        # The last dimension is the temporal axis
+        pooling_mean = x.mean(dim=-1)
+        pooling_std = paddle.sqrt(paddle.var(x, axis=-1) + 1e-8)
+        pooling_mean = pooling_mean.flatten(start_dim=1)
+        pooling_std = pooling_std.flatten(start_dim=1)
+
+        stats = paddle.concat((pooling_mean, pooling_std), 1)
+        return stats

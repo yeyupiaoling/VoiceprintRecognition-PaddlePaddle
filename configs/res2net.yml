@@ -1,9 +1,7 @@
 # 数据集参数
 dataset_conf:
   # 说话人数量，即分类大小
-  num_speakers: 3242
-  # 读取数据的线程数量
-  num_workers: 4
+  num_speakers: 2796
   # 过滤最短的音频长度
   min_duration: 0.5
   # 最长的音频长度，大于这个长度会裁剪掉
@@ -37,7 +35,7 @@ dataset_conf:
   # 数据加载器参数
   dataLoader:
     # 训练的批量大小
-    batch_size: 16
+    batch_size: 64
     # 读取数据的线程数量
     num_workers: 4
 
@@ -71,6 +69,8 @@ optimizer_conf:
 
 model_conf:
   backbone:
+    # 所使用的池化层，支持ASP、SAP、TSP、TAP、TSTP
+    pooling_type: 'ASP'
     embd_dim: 192
   classifier:
     num_blocks: 0
@@ -95,4 +95,4 @@ train_conf:
   log_interval: 100
 
 # 所使用的模型
-use_model: 'EcapaTdnn'
+use_model: 'Res2Net'
