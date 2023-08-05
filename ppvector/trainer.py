@@ -303,8 +303,8 @@ class PPVectorTrainer(object):
             # 计算准确率
             label = paddle.reshape(label, shape=(-1, 1))
             acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
-            accuracies.append(acc.numpy()[0])
-            loss_sum.append(los.numpy()[0])
+            accuracies.append(float(acc))
+            loss_sum.append(float(los))
             train_times.append((time.time() - start) * 1000)
 
             # 多卡训练只使用一个进程打印
