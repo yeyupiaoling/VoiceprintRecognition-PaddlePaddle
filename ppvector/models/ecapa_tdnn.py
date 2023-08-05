@@ -177,7 +177,7 @@ class EcapaTdnn(nn.Layer):
         self.input_size = input_size
         self.channels = channels
         self.blocks = nn.LayerList()
-        self.emb_size = embd_dim
+        self.embd_dim = embd_dim
 
         # The initial TDNN layer
         self.blocks.append(
@@ -216,40 +216,40 @@ class EcapaTdnn(nn.Layer):
             self.asp_bn = BatchNorm1d(input_size=channels[-1] * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels[-1] * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "SAP":
             self.asp = SelfAttentivePooling(cat_channels, 128)
             self.asp_bn = nn.BatchNorm1D(cat_channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TAP":
             self.asp = TemporalAveragePooling()
             self.asp_bn = nn.BatchNorm1D(cat_channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSP":
             self.asp = TemporalStatisticsPooling()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSTP":
             self.asp = TemporalStatsPool()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         else:
             raise Exception(f'没有{pooling_type}池化层！')
 
-    def forward(self, x, lengths=None):
+    def forward(self, x):
         """
         Compute embeddings.
 
@@ -260,6 +260,10 @@ class EcapaTdnn(nn.Layer):
         Returns:
             paddle.Tensor: Output embeddings with shape (N, self.emb_size, 1)
         """
+        if isinstance(x, list):
+            x, lengths = x
+        else:
+            lengths = None
         x = x.transpose([0, 2, 1])
         xl = []
         for layer in self.blocks:

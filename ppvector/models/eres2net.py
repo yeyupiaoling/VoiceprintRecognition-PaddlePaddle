@@ -37,16 +37,16 @@ class AFF(nn.Layer):
         self.local_att = nn.Sequential(
             nn.Conv2D(channels * 2, inter_channels, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(inter_channels),
-            nn.SiLU(inplace=True),
+            nn.Silu(),
             nn.Conv2D(inter_channels, channels, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2D(channels),
         )
 
     def forward(self, x, ds_y):
-        xa = torch.cat((x, ds_y), dim=1)
+        xa = paddle.concat((x, ds_y), axis=1)
         x_att = self.local_att(xa)
-        x_att = 1.0 + torch.tanh(x_att)
-        xo = torch.mul(x, x_att) + torch.mul(ds_y, 2.0 - x_att)
+        x_att = 1.0 + paddle.tanh(x_att)
+        xo = paddle.multiply(x, x_att) + paddle.multiply(ds_y, 2.0 - x_att)
 
         return xo
 
@@ -87,7 +87,7 @@ class BasicBlockERes2Net(nn.Layer):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-        spx = paddle.split(out, self.width, 1)
+        spx = paddle.split(out, int(out.shape[1]/self.width), 1)
         for i in range(self.nums):
             if i == 0:
                 sp = spx[i]
@@ -152,7 +152,7 @@ class BasicBlockERes2Net_diff_AFF(nn.Layer):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
-        spx = paddle.split(out, self.width, 1)
+        spx = paddle.split(out, int(out.shape[1]/self.width), 1)
         for i in range(self.nums):
             if i == 0:
                 sp = spx[i]
@@ -189,7 +189,7 @@ class ERes2Net(nn.Layer):
         super(ERes2Net, self).__init__()
         self.in_planes = m_channels
         self.feat_dim = input_size
-        self.emb_size = embd_dim
+        self.embd_dim = embd_dim
         self.stats_dim = int(input_size / 8) * m_channels * 8
         self.two_emb_layer = two_emb_layer
 
@@ -242,7 +242,7 @@ class ERes2Net(nn.Layer):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
+        x = x.transpose((0, 2, 1))  # (B,T,F) => (B,F,T)
 
         x = x.unsqueeze_(1)
         out = F.relu(self.bn1(self.conv1(x)))

@@ -9,7 +9,7 @@ soundcard>=0.4.2
 pyyaml>=5.4.1
 termcolor>=1.1.0
 typeguard==2.13.3
-paddleaudio>=1.0.1
+paddleaudio>=1.1.0
 scikit-learn>=1.0.2
 pydub>=0.25.1
 av>=10.0.0

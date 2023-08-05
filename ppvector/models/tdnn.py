@@ -9,7 +9,7 @@ from ppvector.models.utils import Conv1d, BatchNorm1d
 class TDNN(nn.Layer):
     def __init__(self, input_size=80, channels=512, embd_dim=192, pooling_type="ASP"):
         super(TDNN, self).__init__()
-        self.emb_size = embd_dim
+        self.embd_dim = embd_dim
         self.td_layer1 = nn.Conv1D(in_channels=input_size, out_channels=512, dilation=1, kernel_size=5, stride=1)
         self.bn1 = nn.BatchNorm1D(512)
         self.td_layer2 = nn.Conv1D(in_channels=512, out_channels=512, dilation=2, kernel_size=3, stride=1)
@@ -25,40 +25,40 @@ class TDNN(nn.Layer):
             self.pooling_bn = BatchNorm1d(input_size=channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "SAP":
             self.asp = SelfAttentivePooling(channels, 128)
             self.asp_bn = nn.BatchNorm1D(channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TAP":
             self.asp = TemporalAveragePooling()
             self.asp_bn = nn.BatchNorm1D(channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSP":
             self.asp = TemporalStatisticsPooling()
             self.asp_bn = nn.BatchNorm1D(channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSTP":
             self.asp = TemporalStatsPool()
             self.asp_bn = nn.BatchNorm1D(channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         else:
             raise Exception(f'没有{pooling_type}池化层！')
 
-    def forward(self, x, lengths=None):
+    def forward(self, x):
         """
         Compute embeddings.
 

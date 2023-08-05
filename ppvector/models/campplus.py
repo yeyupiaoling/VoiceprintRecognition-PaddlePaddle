@@ -9,24 +9,24 @@ def get_nonlinear(config_str, channels):
     nonlinear = nn.Sequential()
     for name in config_str.split('-'):
         if name == 'relu':
-            nonlinear.add_module('relu', nn.ReLU())
+            nonlinear.add_sublayer('relu', nn.ReLU())
         elif name == 'prelu':
-            nonlinear.add_module('prelu', nn.PReLU(channels))
+            nonlinear.add_sublayer('prelu', nn.PReLU(channels))
         elif name == 'batchnorm':
-            nonlinear.add_module('batchnorm', nn.BatchNorm1D(channels))
+            nonlinear.add_sublayer('batchnorm', nn.BatchNorm1D(channels))
         elif name == 'batchnorm_':
-            nonlinear.add_module('batchnorm', nn.BatchNorm1D(channels))
+            nonlinear.add_sublayer('batchnorm', nn.BatchNorm1D(channels))
         else:
             raise ValueError('Unexpected module ({}).'.format(name))
     return nonlinear
 
 
-def statistics_pooling(x, dim=-1, keepdim=False, unbiased=True, eps=1e-2):
-    mean = x.mean(dim=dim)
-    std = x.std(dim=dim, unbiased=unbiased)
+def statistics_pooling(x, axis=-1, keepdim=False, unbiased=True, eps=1e-2):
+    mean = x.mean(axis=axis)
+    std = x.std(axis=axis, unbiased=unbiased)
     stats = paddle.concat([mean, std], axis=-1)
     if keepdim:
-        stats = stats.unsqueeze(dim=dim)
+        stats = stats.unsqueeze(axis=axis)
     return stats
 
 
@@ -101,7 +101,7 @@ class CAMLayer(nn.Layer):
         else:
             raise ValueError('Wrong segment pooling type.')
         shape = seg.shape
-        seg = seg.unsqueeze(-1).expand(*shape, seg_len).reshape(*shape[:-1], -1)
+        seg = seg.unsqueeze(-1).expand((*shape, seg_len)).reshape((*shape[:-1], -1))
         seg = seg[..., :x.shape[-1]]
         return seg
 
@@ -165,7 +165,7 @@ class CAMDenseTDNNBlock(nn.LayerList):
                                       bias=bias,
                                       config_str=config_str,
                                       memory_efficient=memory_efficient)
-            self.add_module('tdnnd%d' % (i + 1), layer)
+            self.add_sublayer('tdnnd%d' % (i + 1), layer)
 
     def forward(self, x):
         for layer in self:
@@ -201,7 +201,7 @@ class DenseLayer(nn.Layer):
 
     def forward(self, x):
         if len(x.shape) == 2:
-            x = self.linear(x.unsqueeze(dim=-1)).squeeze(dim=-1)
+            x = self.linear(x.unsqueeze(axis=-1)).squeeze(axis=-1)
         else:
             x = self.linear(x)
         x = self.nonlinear(x)
@@ -277,7 +277,7 @@ class FCM(nn.Layer):
         out = F.relu(self.bn2(self.conv2(out)))
 
         shape = out.shape
-        out = out.reshape(shape[0], shape[1] * shape[2], shape[3])
+        out = out.reshape((shape[0], shape[1] * shape[2], shape[3]))
         return out
 
 
@@ -294,17 +294,15 @@ class CAMPPlus(nn.Layer):
 
         self.head = FCM(feat_dim=input_size)
         channels = self.head.out_channels
-        self.emb_size = embd_dim
+        self.embd_dim = embd_dim
 
-        self.xvector = nn.Sequential(
-            OrderedDict([('tdnn', TDNNLayer(channels,
-                                            init_channels,
-                                            5,
-                                            stride=2,
-                                            dilation=1,
-                                            padding=-1,
-                                            config_str=config_str)),
-                         ]))
+        self.xvector = nn.Sequential(('tdnn', TDNNLayer(channels,
+                                                        init_channels,
+                                                        5,
+                                                        stride=2,
+                                                        dilation=1,
+                                                        padding=-1,
+                                                        config_str=config_str)))
         channels = init_channels
         for i, (num_layers, kernel_size,
                 dilation) in enumerate(zip((12, 24, 16), (3, 3, 3), (1, 2, 2))):
@@ -316,28 +314,22 @@ class CAMPPlus(nn.Layer):
                                       dilation=dilation,
                                       config_str=config_str,
                                       memory_efficient=memory_efficient)
-            self.xvector.add_module('block%d' % (i + 1), block)
+            self.xvector.add_sublayer('block%d' % (i + 1), block)
             channels = channels + num_layers * growth_rate
-            self.xvector.add_module('transit%d' % (i + 1),
+            self.xvector.add_sublayer('transit%d' % (i + 1),
                                     TransitLayer(channels,
                                                  channels // 2,
                                                  bias=False,
                                                  config_str=config_str))
             channels //= 2
 
-        self.xvector.add_module('out_nonlinear', get_nonlinear(config_str, channels))
+        self.xvector.add_sublayer('out_nonlinear', get_nonlinear(config_str, channels))
 
-        self.xvector.add_module('stats', StatsPool())
-        self.xvector.add_module('dense', DenseLayer(channels * 2, embd_dim, config_str='batchnorm_'))
-
-        for m in self.modules():
-            if isinstance(m, (nn.Conv1D, nn.Linear)):
-                nn.init.kaiming_normal_(m.weight.data)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+        self.xvector.add_sublayer('stats', StatsPool())
+        self.xvector.add_sublayer('dense', DenseLayer(channels * 2, embd_dim, config_str='batchnorm_'))
 
     def forward(self, x):
-        x = x.permute(0, 2, 1)  # (B,T,F) => (B,F,T)
+        x = x.transpose((0, 2, 1))  # (B,T,F) => (B,F,T)
         x = self.head(x)
         x = self.xvector(x)
         return x

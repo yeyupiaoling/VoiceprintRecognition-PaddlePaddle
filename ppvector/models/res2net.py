@@ -94,7 +94,7 @@ class Res2Net(nn.Layer):
         super(Res2Net, self).__init__()
         self.base_width = base_width
         self.scale = scale
-        self.emb_size = embd_dim
+        self.embd_dim = embd_dim
         self.conv1 = nn.Conv2D(1, 64, kernel_size=7, stride=2, padding=3)
         self.bn1 = nn.BatchNorm2D(64)
         self.relu = nn.ReLU()
@@ -110,35 +110,35 @@ class Res2Net(nn.Layer):
             self.pooling_bn = BatchNorm1d(input_size=cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "SAP":
             self.asp = SelfAttentivePooling(cat_channels, 128)
             self.asp_bn = nn.BatchNorm1D(cat_channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TAP":
             self.asp = TemporalAveragePooling()
             self.asp_bn = nn.BatchNorm1D(cat_channels)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSP":
             self.asp = TemporalStatisticsPooling()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         elif pooling_type == "TSTP":
             self.asp = TemporalStatsPool()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.emb_size,
+                             out_channels=self.embd_dim,
                              kernel_size=1)
         else:
             raise Exception(f'没有{pooling_type}池化层！')
@@ -159,7 +159,7 @@ class Res2Net(nn.Layer):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x, lengths=None):
+    def forward(self, x):
         x = x.transpose([0, 2, 1])
         x = x.unsqueeze(1)
         x = self.conv1(x)

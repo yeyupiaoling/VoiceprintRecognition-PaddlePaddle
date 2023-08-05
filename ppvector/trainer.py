@@ -145,7 +145,7 @@ class PPVectorTrainer(object):
             num_class = self.configs.dataset_conf.num_speakers
             # 语速扰动要增加分类数量
             num_class = num_class * 3 if self.configs.dataset_conf.speed_perturb else num_class
-            classifier = SpeakerIdentification(input_dim=self.backbone.emb_size,
+            classifier = SpeakerIdentification(input_dim=self.backbone.embd_dim,
                                                loss_type=use_loss,
                                                num_class=num_class,
                                                **self.configs.model_conf.classifier)
@@ -294,7 +294,10 @@ class PPVectorTrainer(object):
         sum_batch = len(self.train_loader) * self.configs.train_conf.max_epoch
         for batch_id, (audio, label, input_lens_ratio) in enumerate(self.train_loader()):
             features, _ = self.audio_featurizer(audio, input_lens_ratio)
-            output = self.model(features, input_lens_ratio)
+            if self.configs.use_model == 'EcapaTdnn':
+                output = self.model([features, input_lens_ratio])
+            else:
+                output = self.model(features)
             # 计算损失值
             los = self.loss(output, label)
             los.backward()
@@ -310,7 +313,7 @@ class PPVectorTrainer(object):
             # 多卡训练只使用一个进程打印
             if batch_id % self.configs.train_conf.log_interval == 0 and local_rank == 0:
                 # 计算每秒训练数据量
-                train_speed = self.configs.dataset_conf.batch_size / (sum(train_times) / len(train_times) / 1000)
+                train_speed = self.configs.dataset_conf.dataLoader.batch_size / (sum(train_times) / len(train_times) / 1000)
                 # 计算剩余时间
                 eta_sec = (sum(train_times) / len(train_times)) * (
                         sum_batch - (epoch_id - 1) * len(self.train_loader) - batch_id)

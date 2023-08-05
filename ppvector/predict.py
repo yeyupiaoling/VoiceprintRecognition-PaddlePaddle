@@ -225,7 +225,10 @@ class PPVectorPredictor:
         input_len_ratio = paddle.to_tensor([1], dtype=paddle.float32)
         audio_feature, _ = self._audio_featurizer(input_data, input_len_ratio)
         # 执行预测
-        feature = self.predictor(audio_feature, input_len_ratio).numpy()[0]
+        if self.configs.use_model == 'EcapaTdnn':
+            feature = self.predictor(audio_feature, input_len_ratio).numpy()[0]
+        else:
+            feature = self.predictor(audio_feature).numpy()[0]
         return feature
 
     def predict_batch(self, audios_data, sample_rate=16000):
@@ -257,7 +260,10 @@ class PPVectorPredictor:
         input_lens_ratio = paddle.to_tensor(input_lens_ratio, dtype=paddle.float32)
         audio_feature, _ = self._audio_featurizer(audios_data, input_lens_ratio)
         # 执行预测
-        features = self.predictor(audio_feature, input_lens_ratio).numpy()
+        if self.configs.use_model == 'EcapaTdnn':
+            features = self.predictor(audio_feature, input_lens_ratio).numpy()
+        else:
+            features = self.predictor(audio_feature).numpy()
         return features
 
     # 声纹对比
