@@ -41,9 +41,7 @@ class AudioFeaturizer(nn.Layer):
         feature = self.feat_fun(waveforms)
         feature = feature.transpose([0, 2, 1])
         # 归一化
-        mean = paddle.mean(feature, 1, keepdim=True)
-        std = paddle.std(feature, 1, keepdim=True)
-        feature = (feature - mean) / (std + 1e-5)
+        feature = feature - feature.mean(1, keepdim=True)
         # 对掩码比例进行扩展
         input_lens = (input_lens_ratio * feature.shape[1]).astype(paddle.int32)
         mask_lens = input_lens.unsqueeze(1)

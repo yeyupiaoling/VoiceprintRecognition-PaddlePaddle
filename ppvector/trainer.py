@@ -11,6 +11,7 @@ import paddle.nn as nn
 import yaml
 from paddle import summary
 from paddle.distributed import fleet
+from paddle.fluid.dataloader import DistributedBatchSampler
 from paddle.io import DataLoader
 from paddle.metric import accuracy
 from paddle.optimizer.lr import CosineAnnealingDecay
@@ -78,18 +79,18 @@ class PPVectorTrainer(object):
                                                max_duration=self.configs.dataset_conf.max_duration,
                                                min_duration=self.configs.dataset_conf.min_duration,
                                                sample_rate=self.configs.dataset_conf.sample_rate,
-                                               speed_perturb=self.configs.dataset_conf.speed_perturb,
-                                               noise_dir=self.configs.dataset_conf.noise_dir,
-                                               num_speakers=self.configs.dataset_conf.num_speakers,
+                                               aug_conf=self.configs.dataset_conf.aug_conf,
+                                               num_speakers=self.configs.model_conf.classifier.num_speakers,
                                                use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
                                                target_dB=self.configs.dataset_conf.target_dB,
                                                mode='train')
+            # 设置支持多卡训练
             train_sampler = None
             if paddle.distributed.get_world_size() > 1:
                 # 设置支持多卡训练
-                train_sampler = paddle.io.DistributedBatchSampler(dataset=self.train_dataset,
-                                                                  batch_size=self.configs.dataset_conf.batch_size,
-                                                                  shuffle=True)
+                train_sampler = DistributedBatchSampler(dataset=self.train_dataset,
+                                                        batch_size=self.configs.dataset_conf.dataLoader.batch_size,
+                                                        shuffle=True)
             self.train_loader = DataLoader(dataset=self.train_dataset,
                                            collate_fn=collate_fn,
                                            shuffle=(train_sampler is None),
@@ -142,12 +143,12 @@ class PPVectorTrainer(object):
         if is_train:
             use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
             # 获取分类器
-            num_class = self.configs.dataset_conf.num_speakers
+            num_class = self.configs.model_conf.classifier.num_speakers
             # 语速扰动要增加分类数量
-            num_class = num_class * 3 if self.configs.dataset_conf.speed_perturb else num_class
+            self.configs.model_conf.classifier.num_speakers = num_class * 3 \
+                if self.configs.dataset_conf.aug_conf.speed_perturb else num_class
             classifier = SpeakerIdentification(input_dim=self.backbone.embd_dim,
                                                loss_type=use_loss,
-                                               num_class=num_class,
                                                **self.configs.model_conf.classifier)
             # 合并模型
             self.model = nn.Sequential(self.backbone, classifier)
@@ -314,7 +315,8 @@ class PPVectorTrainer(object):
             # 多卡训练只使用一个进程打印
             if batch_id % self.configs.train_conf.log_interval == 0 and local_rank == 0:
                 # 计算每秒训练数据量
-                train_speed = self.configs.dataset_conf.dataLoader.batch_size / (sum(train_times) / len(train_times) / 1000)
+                train_speed = self.configs.dataset_conf.dataLoader.batch_size / (
+                            sum(train_times) / len(train_times) / 1000)
                 # 计算剩余时间
                 eta_sec = (sum(train_times) / len(train_times)) * (
                         sum_batch - (epoch_id - 1) * len(self.train_loader) - batch_id)
