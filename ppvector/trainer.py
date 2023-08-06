@@ -443,8 +443,8 @@ class PPVectorTrainer(object):
             for batch_id, (audio, label, input_lens_ratio) in enumerate(
                     tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                feature = eval_model(audio_features).data.cpu().numpy()
-                label = label.data.cpu().numpy()
+                feature = eval_model(audio_features).numpy()
+                label = label.numpy()
                 # 存放特征
                 enroll_features = np.concatenate((enroll_features, feature)) if enroll_features is not None else feature
                 enroll_labels = np.concatenate((enroll_labels, label)) if enroll_labels is not None else label
@@ -454,8 +454,8 @@ class PPVectorTrainer(object):
             for batch_id, (audio, label, input_lens_ratio) in enumerate(
                     tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                feature = eval_model(audio_features).data.cpu().numpy()
-                label = label.data.cpu().numpy()
+                feature = eval_model(audio_features).numpy()
+                label = label.numpy()
                 # 存放特征
                 trials_features = np.concatenate((trials_features, feature)) if trials_features is not None else feature
                 trials_labels = np.concatenate((trials_labels, label)) if trials_labels is not None else label
