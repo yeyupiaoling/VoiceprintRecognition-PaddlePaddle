@@ -56,7 +56,8 @@ class PPVectorPredictor:
             print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
-        self._audio_featurizer = AudioFeaturizer(method_args=self.configs.feature_conf, **self.configs.preprocess_conf)
+        self._audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
+                                                 method_args=self.configs.preprocess_conf.get('method_args', {}))
         # 创建模型
         if not os.path.exists(model_path):
             raise Exception("模型文件不存在，请检查{}是否存在！".format(model_path))
