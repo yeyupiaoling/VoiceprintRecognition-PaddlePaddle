@@ -274,6 +274,7 @@ class PPVectorTrainer(object):
             data = {"last_epoch": epoch_id, "version": __version__}
             if best_eer is not None:
                 data['eer'] = best_eer
+            f.write(json.dumps(data, ensure_ascii=False))
         if not best_model:
             last_model_path = os.path.join(save_model_path,
                                            f'{self.configs.use_model}_{self.configs.preprocess_conf.feature_method}',

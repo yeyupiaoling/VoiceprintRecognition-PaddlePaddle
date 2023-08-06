@@ -55,7 +55,6 @@ class DenseLayer(nn.Layer):
     def __init__(self,
                  in_channels,
                  out_channels,
-                 bias=False,
                  config_str='batchnorm-relu'):
         super(DenseLayer, self).__init__()
         self.linear = nn.Conv1D(in_channels, out_channels, 1)
