@@ -504,7 +504,7 @@ class PPVectorTrainer(object):
             logger.info(f"结果图以保存在：{os.path.join(save_image_path, 'result.png')}")
         return eer, min_dcf, threshold
 
-    def export(self, save_model_path='models/', resume_model='models/EcapaTdnn_MelSpectrogram/best_model/'):
+    def export(self, save_model_path='models/', resume_model='models/EcapaTdnn_Fbank/best_model/'):
         """
         导出预测模型
         :param save_model_path: 模型保存的路径
