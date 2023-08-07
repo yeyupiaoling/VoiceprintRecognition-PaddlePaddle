@@ -92,7 +92,7 @@ class KaldiFbank(nn.Layer):
             if len(waveform.shape) == 1:
                 waveform = waveform.unsqueeze(0)
             log_fbank = Kaldi.fbank(waveform, **self.kwargs)
-            log_fbank = log_fbank.transpose(0, 1)
+            log_fbank = log_fbank.transpose((1, 0))
             log_fbanks.append(log_fbank)
         log_fbank = paddle.stack(log_fbanks)
         return log_fbank
