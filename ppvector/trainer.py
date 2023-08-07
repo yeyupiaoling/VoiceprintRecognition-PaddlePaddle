@@ -142,6 +142,9 @@ class PPVectorTrainer(object):
 
         # 获取训练所需的函数
         if is_train:
+            if self.configs.train_conf.enable_amp:
+                # 自动混合精度训练，逻辑2，定义GradScaler
+                self.amp_scaler = paddle.amp.GradScaler(init_loss_scaling=1024)
             use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
             # 获取分类器
             num_class = self.configs.model_conf.classifier.num_speakers
@@ -299,14 +302,29 @@ class PPVectorTrainer(object):
             features, _ = self.audio_featurizer(audio, input_lens_ratio)
             if self.configs.dataset_conf.use_spec_aug:
                 features = self.spec_aug(features)
-            if self.configs.use_model == 'EcapaTdnn':
-                output = self.model([features, input_lens_ratio])
-            else:
-                output = self.model(features)
+            # 执行模型计算，是否开启自动混合精度
+            with paddle.amp.auto_cast(enable=self.configs.train_conf.enable_amp, level='O1'):
+                if self.configs.use_model == 'EcapaTdnn':
+                    output = self.model([features, input_lens_ratio])
+                else:
+                    output = self.model(features)
             # 计算损失值
             los = self.loss(output, label)
-            los.backward()
-            self.optimizer.step()
+            # 是否开启自动混合精度
+            if self.configs.train_conf.enable_amp:
+                # loss缩放，乘以系数loss_scaling
+                scaled = self.amp_scaler.scale(los)
+                scaled.backward()
+            else:
+                los.backward()
+            # 是否开启自动混合精度
+            if self.configs.train_conf.enable_amp:
+                # 更新参数（参数梯度先除系数loss_scaling再更新参数）
+                self.amp_scaler.step(self.optimizer)
+                # 基于动态loss_scaling策略更新loss_scaling系数
+                self.amp_scaler.update()
+            else:
+                self.optimizer.step()
             self.optimizer.clear_grad()
             # 计算准确率
             label = paddle.reshape(label, shape=(-1, 1))
