@@ -25,6 +25,8 @@ class AudioFeaturizer(nn.Layer):
             self.feat_fun = Spectrogram(**method_args)
         elif feature_method == 'MFCC':
             self.feat_fun = MFCC(**method_args)
+        elif feature_method == 'Fbank':
+            self.feat_fun = KaldiFbank(**method_args)
         else:
             raise Exception(f'预处理方法 {self._feature_method} 不存在!')
 
@@ -70,7 +72,7 @@ class AudioFeaturizer(nn.Layer):
         elif self._feature_method == 'MFCC':
             return self._method_args.get('n_mfcc', 40)
         elif self._feature_method == 'Fbank':
-            return self._method_args.get('num_mel_bins', 23)
+            return self._method_args.get('n_mels', 23)
         else:
             raise Exception('没有{}预处理方法'.format(self._feature_method))
 

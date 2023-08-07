@@ -32,8 +32,10 @@ dataset_conf:
     num_workers: 4
   # 数据增强参数
   aug_conf:
-    # 是否使用语速扰动增强，注意使用语速增强分类数量会大三倍
+    # 是否使用语速扰动增强
     speed_perturb: True
+    # 使用语速增强是否分类大小翻三倍
+    speed_perturb_3_class: True
     # 是否使用音量增强
     volume_perturb: False
     # 音量增强概率

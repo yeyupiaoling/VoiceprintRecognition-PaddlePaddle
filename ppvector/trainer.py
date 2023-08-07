@@ -11,8 +11,7 @@ import paddle.nn as nn
 import yaml
 from paddle import summary
 from paddle.distributed import fleet
-from paddle.fluid.dataloader import DistributedBatchSampler
-from paddle.io import DataLoader
+from paddle.io import DataLoader, DistributedBatchSampler
 from paddle.metric import accuracy
 from paddle.optimizer.lr import CosineAnnealingDecay
 from sklearn.metrics.pairwise import cosine_similarity
@@ -443,10 +442,12 @@ class PPVectorTrainer(object):
         # 获取注册的声纹特征和标签
         enroll_features, enroll_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio, label, input_lens_ratio) in enumerate(
-                    tqdm(self.enroll_loader, desc="注册音频声纹特征")):
+            for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                feature = eval_model(audio_features).numpy()
+                if self.configs.use_model == 'EcapaTdnn':
+                    feature = eval_model([audio_features, input_lens_ratio]).numpy()
+                else:
+                    feature = eval_model(audio_features).numpy()
                 label = label.numpy()
                 # 存放特征
                 enroll_features = np.concatenate((enroll_features, feature)) if enroll_features is not None else feature
@@ -454,10 +455,12 @@ class PPVectorTrainer(object):
         # 获取检验的声纹特征和标签
         trials_features, trials_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio, label, input_lens_ratio) in enumerate(
-                    tqdm(self.trials_loader, desc="验证音频声纹特征")):
+            for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                feature = eval_model(audio_features).numpy()
+                if self.configs.use_model == 'EcapaTdnn':
+                    feature = eval_model([audio_features, input_lens_ratio]).numpy()
+                else:
+                    feature = eval_model(audio_features).numpy()
                 label = label.numpy()
                 # 存放特征
                 trials_features = np.concatenate((trials_features, feature)) if trials_features is not None else feature

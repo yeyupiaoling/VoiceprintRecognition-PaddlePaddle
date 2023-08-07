@@ -227,7 +227,7 @@ class PPVectorPredictor:
         audio_feature, _ = self._audio_featurizer(input_data, input_len_ratio)
         # 执行预测
         if self.configs.use_model == 'EcapaTdnn':
-            feature = self.predictor(audio_feature, input_len_ratio).numpy()[0]
+            feature = self.predictor([audio_feature, input_len_ratio]).numpy()[0]
         else:
             feature = self.predictor(audio_feature).numpy()[0]
         return feature
@@ -262,7 +262,7 @@ class PPVectorPredictor:
         audio_feature, _ = self._audio_featurizer(audios_data, input_lens_ratio)
         # 执行预测
         if self.configs.use_model == 'EcapaTdnn':
-            features = self.predictor(audio_feature, input_lens_ratio).numpy()
+            features = self.predictor([audio_feature, input_lens_ratio]).numpy()
         else:
             features = self.predictor(audio_feature).numpy()
         return features
