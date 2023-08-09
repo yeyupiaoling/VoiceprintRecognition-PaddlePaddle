@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 import paddle
 import paddle.nn.functional as F
 from paddle import nn

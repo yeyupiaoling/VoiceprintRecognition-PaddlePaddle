@@ -63,17 +63,6 @@ git clone https://github.com/yeyupiaoling/VoiceprintRecognition_PaddlePaddle.git
 cd VoiceprintRecognition_PaddlePaddle/
 python setup.py install
 ```
-|    模型     | Params(M) |     预处理方法      |                数据集                 | train speakers | EER | MinDCF | 模型下载地址 |
-|:---------:|:---------:|:--------------:|:----------------------------------:|:--------------:|:---:|:------:|:------:|
-| EcapaTdnn |    7.7    | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-|   TDNN    |    4.3    | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-|  Res2Net  |    29     | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-| ResNetSE  |   16.2    | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-| ERes2Net  |   55.3    | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-|   CAM++   |    8.5    | MelSpectrogram | [CN-Celeb](http://openslr.org/82/) |      2796      |     |        |        |
-
-说明：
-1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
 
 # 修改预处理方法
 
