@@ -5,41 +5,8 @@ from ppvector.models.pooling import SelfAttentivePooling, TemporalStatisticsPool
 from ppvector.models.utils import Conv1d, BatchNorm1d
 
 
-class SEBasicBlock(nn.Layer):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=8):
-        super(SEBasicBlock, self).__init__()
-        self.conv1 = nn.Conv2D(inplanes, planes, kernel_size=3, stride=stride, padding=1)
-        self.bn1 = nn.BatchNorm2D(planes)
-        self.conv2 = nn.Conv2D(planes, planes, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2D(planes)
-        self.relu = nn.ReLU()
-        self.se = SELayer(planes, reduction)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.relu(out)
-        out = self.bn1(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.se(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-        return out
-
-
 class SEBottleneck(nn.Layer):
-    expansion = 4
+    expansion = 2
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, reduction=8):
         super(SEBottleneck, self).__init__()
@@ -47,10 +14,10 @@ class SEBottleneck(nn.Layer):
         self.bn1 = nn.BatchNorm2D(planes)
         self.conv2 = nn.Conv2D(planes, planes, kernel_size=3, stride=stride, padding=1)
         self.bn2 = nn.BatchNorm2D(planes)
-        self.conv3 = nn.Conv2D(planes, planes * 4, kernel_size=1)
-        self.bn3 = nn.BatchNorm2D(planes * 4)
+        self.conv3 = nn.Conv2D(planes, planes * self.expansion, kernel_size=1)
+        self.bn3 = nn.BatchNorm2D(planes * self.expansion)
         self.relu = nn.ReLU()
-        self.se = SELayer(planes * 4, reduction)
+        self.se = SELayer(planes * self.expansion, reduction)
         self.downsample = downsample
         self.stride = stride
 
@@ -97,7 +64,7 @@ class SELayer(nn.Layer):
 
 
 class ResNetSE(nn.Layer):
-    def __init__(self, input_size=80, layers=[3, 4, 6, 3], num_filters=[32, 64, 128, 256], embd_dim=192,
+    def __init__(self, input_size, layers=[3, 4, 6, 3], num_filters=[32, 64, 128, 256], embd_dim=192,
                  pooling_type="ASP"):
         super(ResNetSE, self).__init__()
         self.inplanes = num_filters[0]
