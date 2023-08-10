@@ -1,6 +1,6 @@
 import paddle.nn as nn
 
-from ppvector.models.pooling import AttentiveStatisticsPooling, TemporalAveragePooling, TemporalStatsPool
+from ppvector.models.pooling import AttentiveStatisticsPooling, TemporalAveragePooling
 from ppvector.models.pooling import SelfAttentivePooling, TemporalStatisticsPooling
 from ppvector.models.utils import Conv1d, BatchNorm1d
 
@@ -102,13 +102,6 @@ class ResNetSE(nn.Layer):
                              kernel_size=1)
         elif pooling_type == "TSP":
             self.asp = TemporalStatisticsPooling()
-            self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
-            # Final linear transformation
-            self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.embd_dim,
-                             kernel_size=1)
-        elif pooling_type == "TSTP":
-            self.asp = TemporalStatsPool()
             self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
             # Final linear transformation
             self.fc = Conv1d(in_channels=cat_channels * 2,

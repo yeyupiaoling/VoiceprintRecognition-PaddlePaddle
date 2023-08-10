@@ -4,8 +4,7 @@ import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
 
-from ppvector.models.pooling import AttentiveStatisticsPooling, TemporalAveragePooling, TemporalStatsPool
-from ppvector.models.pooling import SelfAttentivePooling, TemporalStatisticsPooling
+from ppvector.models.pooling import TemporalStatsPool
 
 
 class ReLU(nn.Hardtanh):
@@ -225,15 +224,7 @@ class ERes2Net(nn.Layer):
         self.fuse_mode1234 = AFF(channels=m_channels * 16 * mul_channel)
 
         self.n_stats = 1 if pooling_type == 'TAP' else 2
-        if pooling_type == "ASP":
-            self.pooling = AttentiveStatisticsPooling(m_channels, 128)
-        elif pooling_type == "SAP":
-            self.pooling = SelfAttentivePooling(m_channels, 128)
-        elif pooling_type == "TAP":
-            self.pooling = TemporalAveragePooling()
-        elif pooling_type == "TSP":
-            self.pooling = TemporalStatisticsPooling()
-        elif pooling_type == "TSTP":
+        if pooling_type == "TSTP":
             self.pooling = TemporalStatsPool()
         else:
             raise Exception(f'没有{pooling_type}池化层！')
