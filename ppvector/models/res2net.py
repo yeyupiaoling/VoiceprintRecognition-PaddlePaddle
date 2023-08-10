@@ -91,8 +91,8 @@ class Res2Net(nn.Layer):
 
     def __init__(self, input_size, m_channels=32, layers=[3, 4, 6, 3], base_width=32, scale=2, embd_dim=192,
                  pooling_type="ASP"):
-        self.inplanes = m_channels
         super(Res2Net, self).__init__()
+        self.inplanes = m_channels
         self.base_width = base_width
         self.scale = scale
         self.embd_dim = embd_dim
