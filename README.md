@@ -47,7 +47,7 @@
   <td align="center">0.98085</td>
   <td align="center">0.01123</td>
   <td align="center">0.03039</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/86951790">点击下载</a></td>
+  <td align="center" rowspan="6"><a href="https://download.csdn.net/download/qq_33200967/88205946">全部下载</a></td>
 </tr>
 <tr>
   <td align="center">EcapaTdnn</td>
@@ -57,7 +57,6 @@
   <td align="center">0.98693</td>
   <td align="center">0.00910</td>
   <td align="center">0.02216</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/86987768">点击下载</a></td>
 </tr>
 <tr>
   <td align="center">EcapaTdnn</td>
@@ -67,7 +66,6 @@
   <td align="center">0.98573</td>
   <td align="center">0.01028</td>
   <td align="center">0.02454</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87527690">点击下载</a></td>
 </tr>
 <tr>
   <td align="center">EcapaTdnn</td>
@@ -77,7 +75,6 @@
   <td align="center">0.98504</td>
   <td align="center">0.00867</td>
   <td align="center">0.02363</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87527015">点击下载</a></td>
 </tr>
 <tr>
   <td align="center">EcapaTdnn</td>
@@ -87,7 +84,6 @@
   <td align="center">0.97910</td>
   <td align="center">0.00778</td>
   <td align="center">0.02868</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87041912">点击下载</a></td>
 </tr>
 <tr>
   <td align="center">EcapaTdnn</td>
@@ -97,7 +93,6 @@
   <td align="center">0.98540</td>
   <td align="center">0.00633</td>
   <td align="center">0.02093</td>
-  <td align="center"><a href="https://download.csdn.net/download/qq_33200967/87106989">点击下载</a></td>
 </tr>
 </table>
 
