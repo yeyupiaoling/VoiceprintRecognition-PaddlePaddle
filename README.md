@@ -47,7 +47,7 @@
 |  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
 | ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
 | ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
-|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
+|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 |
 | ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |
 |   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |
 
