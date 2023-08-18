@@ -46,7 +46,7 @@
 |   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 |
 |  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 |
 | ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
-| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
+| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.22    | 0.09637 | 0.52627 |
 |   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 |
 | ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |
 |   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |
