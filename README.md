@@ -41,16 +41,16 @@
 
 # 模型下载
 
-|    模型     | Params(M) | 预处理方法 |                数据集                 | train speakers | threshold |   EER   | MinDCF  | 
-|:---------:|:---------:|:-----:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|
-|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 |
-| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.22    | 0.09637 | 0.52627 |
-| ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |           |         |         |
-| EcapaTdnn |    6.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.10465 | 0.58521 |
-|   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 |
-|  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 |
-| ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |
-|   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |
+|    模型     | Params(M) | 预处理方法 |                数据集                 | train speakers | threshold |   EER   | MinDCF  |                              模型下载                               |
+|:---------:|:---------:|:-----:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|:---------------------------------------------------------------:|
+|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 | [全部下载](https://download.csdn.net/download/qq_33200967/88265940) |
+| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.22    | 0.09637 | 0.52627 |                               同上                                |
+| ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.19    | 0.10222 | 0.57981 |                               同上                                |
+| EcapaTdnn |    6.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.10465 | 0.58521 |                               同上                                |
+|   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 |                               同上                                |
+|  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 |                               同上                                |
+| ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |                               同上                                |
+|   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |                               同上                                |
 
 说明：
 1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
@@ -71,29 +71,24 @@ python -m pip install ppvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 **建议源码安装**，源码安装能保证使用最新代码。
 ```shell
-git clone https://github.com/yeyupiaoling/VoiceprintRecognition_PaddlePaddle.git
-cd VoiceprintRecognition_PaddlePaddle/
+git clone https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle.git
+cd VoiceprintRecognition-PaddlePaddle/
 python setup.py install
 ```
 
 # 修改预处理方法
 
-配置文件中默认使用的是MelSpectrogram预处理方法，如果要使用其他预处理方法，可以修改配置文件中的安装下面方式修改，具体的值可以根据自己情况修改。如果不清楚如何设置参数，可以直接删除该部分，直接使用默认值。
+配置文件中默认使用的是Fbank预处理方法，如果要使用其他预处理方法，可以修改配置文件中的安装下面方式修改，具体的值可以根据自己情况修改。如果不清楚如何设置参数，可以直接删除该部分，直接使用默认值。
 
 ```yaml
+# 数据预处理参数
 preprocess_conf:
-   # 音频预处理方法，支持：LogMelSpectrogram、MelSpectrogram、Spectrogram、MFCC、Fbank
-  feature_method: 'MelSpectrogram'
+  # 音频预处理方法，支持：LogMelSpectrogram、MelSpectrogram、Spectrogram、MFCC、Fbank
+  feature_method: 'Fbank'
   # 设置API参数，更参数查看对应API，不清楚的可以直接删除该部分，直接使用默认值
   method_args:
-   sr: 16000
-   n_fft: 1024
-   hop_length: 320
-   window: 'hann'
-   win_length: 1024
-   f_min: 50.0
-   f_max: 14000.0
-   n_mels: 64
+    sr: 16000
+    n_mels: 80
 ```
 
 # 训练模型
