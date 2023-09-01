@@ -73,7 +73,7 @@ python -m pip install ppvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```shell
 git clone https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle.git
 cd VoiceprintRecognition-PaddlePaddle/
-python setup.py install
+pip install .
 ```
 
 # 修改预处理方法
