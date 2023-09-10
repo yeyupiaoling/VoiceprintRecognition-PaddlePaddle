@@ -49,6 +49,7 @@
 | EcapaTdnn |    6.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.10465 | 0.58521 |                                    加入知识星球获取                                     |
 |   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 |                                    加入知识星球获取                                     |
 |  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 |                                    加入知识星球获取                                     |
+|   CAM++   |    7.5    | Fbank |               更大数据集                |      2W+       |   0.34    | 0.07884 | 0.52738 |                                    加入知识星球获取                                     |
 | ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |                                    加入知识星球获取                                     |
 |   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |                                    加入知识星球获取                                     |
 
@@ -73,7 +74,7 @@ python -m pip install ppvector -U -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```shell
 git clone https://github.com/yeyupiaoling/VoiceprintRecognition-PaddlePaddle.git
 cd VoiceprintRecognition-PaddlePaddle/
-python setup.py install
+pip install .
 ```
 
 # 修改预处理方法
