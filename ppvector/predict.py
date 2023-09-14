@@ -124,7 +124,7 @@ class PPVectorPredictor:
         audios_path = []
         for name in os.listdir(audio_db_path):
             audio_dir = os.path.join(audio_db_path, name)
-            if not os.path.isdir(audio_dir):continue
+            if not os.path.isdir(audio_dir): continue
             for file in os.listdir(audio_dir):
                 audios_path.append(os.path.join(audio_dir, file).replace('\\', '/'))
         # 声纹库没数据就跳过
@@ -177,11 +177,14 @@ class PPVectorPredictor:
             candidate_idx = np.delete(candidate_idx, remove_idx)
             # 获取标签最多的值
             candidate_label_list = list(np.array(self.users_name)[candidate_idx])
+            candidate_label_dict = {k: v for k, v in zip(candidate_idx, candidate_label_list)}
             if len(candidate_label_list) == 0:
-                max_label = None
+                max_label, score = None, None
             else:
                 max_label = max(candidate_label_list, key=candidate_label_list.count)
-            labels.append(max_label)
+                scores = [abs_similarity[k] for k, v in candidate_label_dict.items() if v == max_label]
+                score = round(sum(scores) / len(scores), 5)
+            labels.append([max_label, score])
         return labels
 
     def _load_audio(self, audio_data, sample_rate=16000):
@@ -256,7 +259,7 @@ class PPVectorPredictor:
             seq_length = tensor.shape[0]
             # 将数据插入都0张量中，实现了padding
             inputs[x, :seq_length] = tensor[:]
-            input_lens_ratio.append(seq_length/max_audio_length)
+            input_lens_ratio.append(seq_length / max_audio_length)
         audios_data = paddle.to_tensor(inputs, dtype=paddle.float32)
         input_lens_ratio = paddle.to_tensor(input_lens_ratio, dtype=paddle.float32)
         audio_feature, _ = self._audio_featurizer(audios_data, input_lens_ratio)
@@ -324,8 +327,8 @@ class PPVectorPredictor:
         if threshold:
             self.threshold = threshold
         feature = self.predict(audio_data, sample_rate=sample_rate)
-        name = self.__retrieval(np_feature=[feature])[0]
-        return name
+        name, score = self.__retrieval(np_feature=[feature])[0]
+        return name, score
 
     def remove_user(self, user_name):
         """删除用户
