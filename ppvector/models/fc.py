@@ -8,6 +8,7 @@ class SpeakerIdentification(nn.Layer):
                  input_dim,
                  num_speakers,
                  loss_type='AAMLoss',
+                 K=1,
                  num_blocks=0,
                  inter_dim=512):
         """The speaker identification model, which includes the speaker backbone network
@@ -27,7 +28,7 @@ class SpeakerIdentification(nn.Layer):
             self.blocks.append(DenseLayer(input_dim, inter_dim, config_str='batchnorm'))
             input_dim = inter_dim
 
-        self.weight = paddle.create_parameter(shape=[input_dim, num_speakers],
+        self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
                                               dtype='float32',
                                               attr=paddle.ParamAttr(initializer=nn.initializer.XavierUniform()), )
 
@@ -37,7 +38,7 @@ class SpeakerIdentification(nn.Layer):
             x = layer(x)
 
         # normalized
-        if self.loss_type == 'AAMLoss':
+        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenter':
             logits = F.linear(F.normalize(x), F.normalize(self.weight, axis=0))
         elif self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss':
             x_norm = paddle.norm(x, p=2, axis=1, keepdim=True).clip(min=1e-12)
