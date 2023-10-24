@@ -31,6 +31,7 @@ class SpeakerIdentification(nn.Layer):
         self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
                                               dtype='float32',
                                               attr=paddle.ParamAttr(initializer=nn.initializer.XavierUniform()), )
+        self.output = nn.Linear(input_dim, num_speakers)
 
     def forward(self, x):
         # x: [B, dim]
