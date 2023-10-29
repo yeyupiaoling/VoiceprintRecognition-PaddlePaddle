@@ -28,9 +28,13 @@ class SpeakerIdentification(nn.Layer):
             self.blocks.append(DenseLayer(input_dim, inter_dim, config_str='batchnorm'))
             input_dim = inter_dim
 
-        self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
-                                              dtype='float32',
-                                              attr=paddle.ParamAttr(initializer=nn.initializer.XavierUniform()), )
+        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenter' or \
+                self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss':
+            self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
+                                                  dtype='float32',
+                                                  attr=paddle.ParamAttr(initializer=nn.initializer.XavierUniform()), )
+        else:
+            self.output = nn.Linear(input_dim, num_speakers)
 
     def forward(self, x):
         # x: [B, dim]
