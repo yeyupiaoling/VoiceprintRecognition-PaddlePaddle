@@ -28,7 +28,7 @@ from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
 from ppvector.models.eres2net import ERes2Net
 from ppvector.models.fc import SpeakerIdentification
-from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenter
+from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss
 from ppvector.models.res2net import Res2Net
 from ppvector.models.resnet_se import ResNetSE
 from ppvector.models.tdnn import TDNN
@@ -163,8 +163,8 @@ class PPVectorTrainer(object):
             loss_args = loss_args if loss_args is not None else {}
             if use_loss == 'AAMLoss':
                 self.loss = AAMLoss(**loss_args)
-            elif use_loss == 'SubCenter':
-                self.loss = SubCenter(**loss_args)
+            elif use_loss == 'SubCenterLoss':
+                self.loss = SubCenterLoss(**loss_args)
             elif use_loss == 'AMLoss':
                 self.loss = AMLoss(**loss_args)
             elif use_loss == 'ARMLoss':
@@ -306,6 +306,7 @@ class PPVectorTrainer(object):
     def __train_epoch(self, epoch_id, save_model_path, local_rank, writer):
         train_times, accuracies, loss_sum = [], [], []
         start = time.time()
+        use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
         sum_batch = len(self.train_loader) * self.configs.train_conf.max_epoch
         for batch_id, (audio, label, input_lens_ratio) in enumerate(self.train_loader()):
             features, _ = self.audio_featurizer(audio, input_lens_ratio)
@@ -336,14 +337,16 @@ class PPVectorTrainer(object):
                 self.optimizer.step()
             self.optimizer.clear_grad()
             # 计算准确率
-            label = paddle.reshape(label, shape=(-1, 1))
-            acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
-            accuracies.append(float(acc))
+            if use_loss != 'SubCenterLoss':
+                label = paddle.reshape(label, shape=(-1, 1))
+                acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+                accuracies.append(float(acc))
             loss_sum.append(float(los))
             train_times.append((time.time() - start) * 1000)
 
             # 多卡训练只使用一个进程打印
             if batch_id % self.configs.train_conf.log_interval == 0 and local_rank == 0:
+                log_acc = f'accuracy: {sum(accuracies) / len(accuracies):.5f}, ' if use_loss != 'SubCenterLoss' else ''
                 # 计算每秒训练数据量
                 train_speed = self.configs.dataset_conf.dataLoader.batch_size / (
                             sum(train_times) / len(train_times) / 1000)
@@ -354,11 +357,12 @@ class PPVectorTrainer(object):
                 logger.info(f'Train epoch: [{epoch_id}/{self.configs.train_conf.max_epoch}], '
                             f'batch: [{batch_id}/{len(self.train_loader)}], '
                             f'loss: {sum(loss_sum) / len(loss_sum):.5f}, '
-                            f'accuracy: {sum(accuracies) / len(accuracies):.5f}, '
+                            f'{log_acc}'
                             f'learning rate: {self.scheduler.get_lr():>.8f}, '
                             f'speed: {train_speed:.2f} data/sec, eta: {eta_str}')
                 writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
-                writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
+                if use_loss != 'SubCenterLoss':
+                    writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
                 # 记录学习率
                 writer.add_scalar('Train/lr', self.scheduler.get_lr(), self.train_step)
                 self.train_step += 1

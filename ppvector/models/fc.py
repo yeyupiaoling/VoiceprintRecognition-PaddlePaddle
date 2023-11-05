@@ -28,7 +28,7 @@ class SpeakerIdentification(nn.Layer):
             self.blocks.append(DenseLayer(input_dim, inter_dim, config_str='batchnorm'))
             input_dim = inter_dim
 
-        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenter' or \
+        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenterLoss' or \
                 self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss':
             self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
                                                   dtype='float32',
@@ -42,7 +42,7 @@ class SpeakerIdentification(nn.Layer):
             x = layer(x)
 
         # normalized
-        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenter':
+        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenterLoss':
             logits = F.linear(F.normalize(x), F.normalize(self.weight, axis=0))
         elif self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss':
             x_norm = paddle.norm(x, p=2, axis=1, keepdim=True).clip(min=1e-12)

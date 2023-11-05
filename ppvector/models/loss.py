@@ -115,7 +115,7 @@ class CELoss(nn.Layer):
         pass
 
 
-class SubCenter(nn.Layer):
+class SubCenterLoss(nn.Layer):
     r"""Implement of large margin arc distance with subcenter:
     Reference:Sub-center ArcFace: Boosting Face Recognition byLarge-Scale Noisy
      Web Faces.https://ibug.doc.ic.ac.uk/media/uploads/documents/eccv_1445.pdf
@@ -128,7 +128,7 @@ class SubCenter(nn.Layer):
     """
 
     def __init__(self, margin=0.2, scale=32, easy_margin=False, K=3):
-        super(SubCenter, self).__init__()
+        super(SubCenterLoss, self).__init__()
         self.scale = scale
         self.margin = margin
         # subcenter
@@ -153,12 +153,11 @@ class SubCenter(nn.Layer):
         self.m = self.margin
         self.mmm = 1.0 + math.cos(math.pi - margin)
 
-    def forward(self, cosine, label):
-        # (batch, out_dim * k)
-        cosine = paddle.reshape(cosine, (cosine.shape[0], -1, self.K))
+    def forward(self, input, label):
         # (batch, out_dim, k)
-        cosine, _ = paddle.max(cosine, 2)
+        cosine = paddle.reshape(input, (-1, input.shape[1] // self.K, self.K))
         # (batch, out_dim)
+        cosine = paddle.max(cosine, 2)
         sine = paddle.sqrt(1.0 - paddle.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
         if self.easy_margin:
