@@ -28,7 +28,7 @@ from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
 from ppvector.models.eres2net import ERes2Net
 from ppvector.models.fc import SpeakerIdentification
-from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss
+from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss, SphereFace2
 from ppvector.models.res2net import Res2Net
 from ppvector.models.resnet_se import ResNetSE
 from ppvector.models.tdnn import TDNN
@@ -163,6 +163,8 @@ class PPVectorTrainer(object):
             loss_args = loss_args if loss_args is not None else {}
             if use_loss == 'AAMLoss':
                 self.loss = AAMLoss(**loss_args)
+            elif use_loss == 'SphereFace2':
+                self.loss = SphereFace2(**loss_args)
             elif use_loss == 'SubCenterLoss':
                 self.loss = SubCenterLoss(**loss_args)
             elif use_loss == 'AMLoss':
