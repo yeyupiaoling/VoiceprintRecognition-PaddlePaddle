@@ -27,7 +27,7 @@
 
 1. 支持模型：EcapaTdnn、TDNN、Res2Net、ResNetSE、ERes2Net、CAM++
 2. 支持池化层：AttentiveStatsPool(ASP)、SelfAttentivePooling(SAP)、TemporalStatisticsPooling(TSP)、TemporalAveragePooling(TAP)、TemporalStatsPool(TSTP)
-3. 支持损失函数：AAMLoss、AMLoss、ARMLoss、CELoss
+3. 支持损失函数：AAMLoss、SphereFace2、AMLoss、ARMLoss、CELoss
 4. 支持预处理方法：MelSpectrogram、Spectrogram、MFCC、Fbank
 
 **模型论文：**
@@ -330,3 +330,5 @@ Loaded 李达康 audio.
 1. https://github.com/PaddlePaddle/PaddleSpeech
 2. https://github.com/yeyupiaoling/PaddlePaddle-MobileFaceNets
 3. https://github.com/yeyupiaoling/PPASR
+4. https://github.com/alibaba-damo-academy/3D-Speaker
+5. https://github.com/wenet-e2e/wespeaker
