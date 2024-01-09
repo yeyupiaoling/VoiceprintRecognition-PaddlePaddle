@@ -19,8 +19,8 @@
 使用环境：
 
  - Anaconda 3
- - Python 3.8
- - PaddlePaddle 2.4.1
+ - Python 3.11
+ - PaddlePaddle 2.5.1
  - Windows 10 or Ubuntu 18.04
 
 # 项目特性
@@ -41,17 +41,17 @@
 
 # 模型下载
 
-|    模型     | Params(M) | 预处理方法 |                数据集                 | train speakers | threshold |   EER   | MinDCF  |                                      模型下载                                       |
-|:---------:|:---------:|:-----:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|:-------------------------------------------------------------------------------:|
-|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 | 加入知识星球获取  |
-| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.22    | 0.09637 | 0.52627 |                                    加入知识星球获取                                     |
-| ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.19    | 0.10222 | 0.57981 |                                    加入知识星球获取                                     |
-| EcapaTdnn |    6.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.10465 | 0.58521 |                                    加入知识星球获取                                     |
-|   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 |                                    加入知识星球获取                                     |
-|  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 |                                    加入知识星球获取                                     |
-|   CAM++   |    7.5    | Fbank |               更大数据集                |      2W+       |   0.34    | 0.07884 | 0.52738 |                                    加入知识星球获取                                     |
-| ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 |                                    加入知识星球获取                                     |
-|   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 |                                    加入知识星球获取                                     |
+|    模型     | Params(M) | 预处理方法 |                数据集                 | train speakers | threshold |   EER   | MinDCF  |   模型下载   |
+|:---------:|:---------:|:-----:|:----------------------------------:|:--------------:|:---------:|:-------:|:-------:|:--------:|
+|   CAM++   |    7.5    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.09485 | 0.56214 | 加入知识星球获取 |
+| ERes2Net  |    8.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.22    | 0.09637 | 0.52627 | 加入知识星球获取 |
+| ResNetSE  |   10.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.19    | 0.10222 | 0.57981 | 加入知识星球获取 |
+| EcapaTdnn |    6.7    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.25    | 0.10465 | 0.58521 | 加入知识星球获取 |
+|   TDNN    |    3.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.23    | 0.11804 | 0.61070 | 加入知识星球获取 |
+|  Res2Net  |    7.2    | Fbank | [CN-Celeb](http://openslr.org/82/) |      2796      |   0.18    | 0.14126 | 0.68511 | 加入知识星球获取 |
+|   CAM++   |    7.5    | Fbank |               更大数据集                |      2W+       |   0.34    | 0.07884 | 0.52738 | 加入知识星球获取 |
+| ERes2Net  |    8.2    | Fbank |               其他数据集                |      20W       |   0.36    | 0.02939 | 0.18355 | 加入知识星球获取 |
+|   CAM++   |    7.5    | Flank |               其他数据集                |      20W       |   0.29    | 0.04768 | 0.31429 | 加入知识星球获取 |
 
 说明：
 1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
@@ -230,8 +230,9 @@ Estimated Total Size (MB): 66.30
 [2023-08-05 09:53:45.439642 INFO   ] trainer:__train_epoch:334 - Train epoch: [1/30], batch: [700/13659], loss: 9.03548, accuracy: 0.01449, learning rate: 0.00099999, speed: 463.63 data/sec, eta: 15:41:08
 ```
 
-VisualDL页面：
-![VisualDL页面](./docs/images/log.jpg)
+启动VisualDL：`visualdl --logdir=log --host 0.0.0.0`，VisualDL页面如下：
+
+<img src="./docs/images/log.jpg" alt="VisualDL页面" width="600">
 
 
 # 评估模型
@@ -251,6 +252,30 @@ W0425 08:27:32.065165 17654 device_context.cc:465] device: 0, cuDNN Version: 7.6
 开始两两对比音频特征...
 100%|███████████████████████████| 5332/5332 [00:05<00:00, 1027.83it/s]
 评估消耗时间：65s，threshold：0.26，EER: 0.14739, MinDCF: 0.41999
+```
+
+# 推理接口
+
+下面给出了几个常用的接口，更多接口请参考`mvector/predict.py`，也可以往下看`声纹对比`和`声纹识别`的例子。
+
+```python
+from ppvector.predict import PPVectorPredictor
+
+predictor = PPVectorPredictor(configs='configs/cam++.yml',
+                              model_path='models/CAMPPlus_Fbank/best_model/')
+# 获取音频特征
+embedding = predictor.predict(audio_data='dataset/a_1.wav')
+# 获取两个音频的相似度
+similarity = predictor.contrast(audio_data1='dataset/a_1.wav', audio_data2='dataset/a_2.wav')
+
+# 注册用户音频
+predictor.register(user_name='夜雨飘零', audio_data='dataset/test.wav')
+# 识别用户音频
+name, score = predictor.recognition(audio_data='dataset/test1.wav')
+# 获取所有用户
+users_name = predictor.get_users()
+# 删除用户音频
+predictor.remove_user(user_name='夜雨飘零')
 ```
 
 # 声纹对比

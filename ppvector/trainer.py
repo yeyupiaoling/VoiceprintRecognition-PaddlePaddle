@@ -267,7 +267,7 @@ class PPVectorTrainer(object):
         return last_epoch, best_eer
 
     # 保存模型
-    def __save_checkpoint(self, save_model_path, epoch_id, best_eer=None, best_model=False):
+    def __save_checkpoint(self, save_model_path, epoch_id, eer=None, min_dcf=None, threshold=None, best_model=False):
         if best_model:
             model_path = os.path.join(save_model_path,
                                       f'{self.configs.use_model}_{self.configs.preprocess_conf.feature_method}',
@@ -288,8 +288,10 @@ class PPVectorTrainer(object):
             return
         with open(os.path.join(model_path, 'model.state'), 'w', encoding='utf-8') as f:
             data = {"last_epoch": epoch_id, "version": __version__}
-            if best_eer is not None:
-                data['eer'] = best_eer
+            if eer is not None:
+                data['threshold'] = threshold
+                data['eer'] = eer
+                data['min_dcf'] = min_dcf
             f.write(json.dumps(data, ensure_ascii=False))
         if not best_model:
             last_model_path = os.path.join(save_model_path,
@@ -419,7 +421,7 @@ class PPVectorTrainer(object):
         # 加载恢复模型
         last_epoch, best_eer = self.__load_checkpoint(save_model_path=save_model_path, resume_model=resume_model)
 
-        eer = None
+        eer, min_dcf, threshold = None, None, None
         test_step, self.train_step = 0, 0
         last_epoch += 1
         if local_rank == 0:
@@ -447,11 +449,12 @@ class PPVectorTrainer(object):
                 # # 保存最优模型
                 if eer <= best_eer:
                     best_eer = eer
-                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_eer=eer,
-                                           best_model=True)
+                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=eer, min_dcf=min_dcf,
+                                           threshold=threshold, best_model=True)
             if local_rank == 0:
                 # 保存模型
-                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, best_eer=eer)
+                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=eer, min_dcf=min_dcf,
+                                       threshold=threshold)
 
     def evaluate(self, resume_model=None, save_image_path=None):
         """
@@ -538,7 +541,7 @@ class PPVectorTrainer(object):
             logger.info(f"结果图以保存在：{os.path.join(save_image_path, 'result.png')}")
         return eer, min_dcf, threshold
 
-    def export(self, save_model_path='models/', resume_model='models/EcapaTdnn_Fbank/best_model/'):
+    def export(self, save_model_path='models/', resume_model='models/CAMPPlus_Fbank/best_model/'):
         """
         导出预测模型
         :param save_model_path: 模型保存的路径

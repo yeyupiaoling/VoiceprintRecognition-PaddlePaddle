@@ -56,26 +56,6 @@ class AAMLoss(nn.Layer):
         self.mmm = 1.0 + math.cos(math.pi - margin)
 
 
-class AMLoss(nn.Layer):
-    def __init__(self, margin=0.2, scale=30):
-        super(AMLoss, self).__init__()
-        self.m = margin
-        self.s = scale
-        self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
-
-    def forward(self, outputs, targets):
-        delt_costh = paddle.zeros(outputs.shape)
-        for i, index in enumerate(targets):
-            delt_costh[i, index] = self.m
-        costh_m = outputs - delt_costh
-        predictions = self.s * costh_m
-        loss = self.criterion(predictions, targets) / targets.shape[0]
-        return loss
-
-    def update(self, margin=0.2):
-        self.m = margin
-
-
 class SphereFace2(nn.Layer):
     def __init__(self, margin=0.2, scale=32.0, lanbuda=0.7, t=3, margin_type='C'):
         """Implement of sphereface2 for speaker verification:
@@ -96,7 +76,7 @@ class SphereFace2(nn.Layer):
         """
         super(SphereFace2, self).__init__()
         self.scale = scale
-        self.bias = paddle.create_parameter(paddle.zeros(1, 1), dtype=paddle.float32)
+        self.bias = paddle.create_parameter([1, 1], dtype=paddle.float32, is_bias=True)
         self.t = t
         self.lanbuda = lanbuda
         self.margin_type = margin_type
@@ -133,10 +113,8 @@ class SphereFace2(nn.Layer):
 
         target_mask = F.one_hot(label, cosine.shape[1])
         nontarget_mask = 1 - target_mask
-        cos1 = (cosine - self.margin) * target_mask + cosine * nontarget_mask
-        output = self.scale * cos1  # for computing the accuracy
         loss = (target_mask * cos_p_theta + nontarget_mask * cos_n_theta).sum(1).mean()
-        return output, loss
+        return loss
 
     def update(self, margin=0.2):
         self.margin = margin
@@ -145,6 +123,26 @@ class SphereFace2(nn.Layer):
         self.th = math.cos(math.pi - margin)
         self.mm = math.sin(math.pi - margin)
         self.mmm = 1.0 + math.cos(math.pi - margin)
+
+
+class AMLoss(nn.Layer):
+    def __init__(self, margin=0.2, scale=30):
+        super(AMLoss, self).__init__()
+        self.m = margin
+        self.s = scale
+        self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
+
+    def forward(self, outputs, targets):
+        delt_costh = paddle.zeros(outputs.shape)
+        for i, index in enumerate(targets):
+            delt_costh[i, index] = self.m
+        costh_m = outputs - delt_costh
+        predictions = self.s * costh_m
+        loss = self.criterion(predictions, targets) / targets.shape[0]
+        return loss
+
+    def update(self, margin=0.2):
+        self.m = margin
 
 
 class ARMLoss(nn.Layer):
