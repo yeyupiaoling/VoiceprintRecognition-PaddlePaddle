@@ -77,6 +77,33 @@ cd VoiceprintRecognition-PaddlePaddle/
 pip install .
 ```
 
+# 创建数据
+本教程笔者使用的是[CN-Celeb](https://openslr.elda.org/resources/82)，这个数据集一共有约3000个人的语音数据，有65W+条语音数据，下载之后要解压数据集到`dataset`目录，另外如果要评估，还需要下载[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)。如果读者有其他更好的数据集，可以混合在一起使用，但最好是要用python的工具模块aukit处理音频，降噪和去除静音。
+
+首先是创建一个数据列表，数据列表的格式为`<语音文件路径\t语音分类标签>`，创建这个列表主要是方便之后的读取，也是方便读取使用其他的语音数据集，语音分类标签是指说话人的唯一ID，不同的语音数据集，可以通过编写对应的生成数据列表的函数，把这些数据集都写在同一个数据列表中。
+
+执行`create_data.py`程序完成数据准备。
+```shell
+python create_data.py
+```
+
+执行上面的程序之后，会生成以下的数据格式，如果要自定义数据，参考如下数据列表，前面是音频的相对路径，后面的是该音频对应的说话人的标签，就跟分类一样。**自定义数据集的注意**，测试数据列表的ID可以不用跟训练的ID一样，也就是说测试的数据的说话人可以不用出现在训练集，只要保证测试数据列表中同一个人相同的ID即可。
+```
+dataset/CN-Celeb2_flac/data/id11999/recitation-03-019.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-10-023.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-06-025.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-04-014.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-06-030.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-10-032.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-06-028.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-10-031.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-05-003.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-04-017.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-10-016.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-09-001.flac      2795
+dataset/CN-Celeb2_flac/data/id11999/recitation-05-010.flac      2795
+```
+
 # 修改预处理方法
 
 配置文件中默认使用的是Fbank预处理方法，如果要使用其他预处理方法，可以修改配置文件中的安装下面方式修改，具体的值可以根据自己情况修改。如果不清楚如何设置参数，可以直接删除该部分，直接使用默认值。
