@@ -55,6 +55,30 @@
 
 说明：
 1. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+2. 使用语速增强分类大小翻三倍`speed_perturb_3_class: True`。
+3. 参数数量不包含了分类器的参数数量。
+
+
+### 训练VoxCeleb1&2数据，共有7205个说话人。
+
+|    模型     | Params(M) | 预处理方法 |     数据集     | train speakers | threshold |  EER  | MinDCF |   模型下载   |
+|:---------:|:---------:|:-----:|:-----------:|:--------------:|:---------:|:-----:|:------:|:--------:|
+|   CAM++   |    6.8    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+| ERes2Net  |    6.6    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+| ResNetSE  |    7.8    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+| EcapaTdnn |    6.1    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+|   TDNN    |    2.6    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+|  Res2Net  |    5.0    | Fbank | VoxCeleb1&2 |      7205      |           |       |        | 加入知识星球获取 |
+|   CAM++   |    6.8    | Fbank |    更大数据集    |      2W+       |           |       |        | 加入知识星球获取 |
+| ERes2Net  |   55.1    | Fbank |    其他数据集    |      20W+      |           |       |        | 加入知识星球获取 |
+|   CAM++   |    6.8    | Fbank |    其他数据集    |      20W+      |           |       |        | 加入知识星球获取 |
+
+说明：
+
+1. 评估的测试集为[VoxCeleb1&2的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/255977)，包含158个说话人。
+2. 使用语速增强分类大小翻三倍`speed_perturb_3_class: True`。
+3. 参数数量不包含了分类器的参数数量。
+
 
 ## 安装环境
 
