@@ -71,8 +71,8 @@ optimizer_conf:
   # 学习率衰减函数参数
   scheduler_args:
     # 学习率的大小
-    learning_rate: 0.001
-    min_lr: !!float 1e-5
+    learning_rate: 0.0005
+    min_lr: !!float 1e-6
     warmup_epoch: 5
 
 model_conf:
