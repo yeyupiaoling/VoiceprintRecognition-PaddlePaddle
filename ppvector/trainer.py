@@ -263,6 +263,8 @@ class PPVectorTrainer(object):
                 last_epoch = json_data['last_epoch'] - 1
                 if 'eer' in json_data.keys():
                     best_eer = json_data['eer']
+            if last_epoch >= 0:
+                self.scheduler.step((last_epoch + 1) * len(self.train_loader))
             logger.info('成功恢复模型参数和优化方法参数：{}'.format(resume_model))
         return last_epoch, best_eer
 
@@ -364,7 +366,7 @@ class PPVectorTrainer(object):
                             f'batch: [{batch_id}/{len(self.train_loader)}], '
                             f'loss: {sum(loss_sum) / len(loss_sum):.5f}, '
                             f'accuracy: {sum(accuracies) / len(accuracies):.5f}, '
-                            f'learning rate: {self.scheduler.get_lr():>.8f}, '
+                            f'learning rate: {self.scheduler.get_lr():.8f}, '
                             f'speed: {train_speed:.2f} data/sec, eta: {eta_str}')
                 writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
                 writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
