@@ -264,7 +264,10 @@ class PPVectorTrainer(object):
                 if 'eer' in json_data.keys():
                     best_eer = json_data['eer']
             if last_epoch >= 0:
+                # 恢复学习率和margin
                 self.scheduler.step((last_epoch + 1) * len(self.train_loader))
+                if self.margin_scheduler:
+                    self.margin_scheduler.step((last_epoch + 1) * len(self.train_loader))
             logger.info('成功恢复模型参数和优化方法参数：{}'.format(resume_model))
         return last_epoch, best_eer
 
@@ -294,6 +297,8 @@ class PPVectorTrainer(object):
                 data['threshold'] = threshold
                 data['eer'] = eer
                 data['min_dcf'] = min_dcf
+            if self.margin_scheduler:
+                data['margin'] = self.margin_scheduler.get_margin()
             f.write(json.dumps(data, ensure_ascii=False))
         if not best_model:
             last_model_path = os.path.join(save_model_path,
@@ -362,16 +367,19 @@ class PPVectorTrainer(object):
                 eta_sec = (sum(train_times) / len(train_times)) * (
                         sum_batch - (epoch_id - 1) * len(self.train_loader) - batch_id)
                 eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
+                margin_str = f'margin: {self.margin_scheduler.get_margin()}' if self.margin_scheduler else ''
                 logger.info(f'Train epoch: [{epoch_id}/{self.configs.train_conf.max_epoch}], '
                             f'batch: [{batch_id}/{len(self.train_loader)}], '
                             f'loss: {sum(loss_sum) / len(loss_sum):.5f}, '
                             f'accuracy: {sum(accuracies) / len(accuracies):.5f}, '
-                            f'learning rate: {self.scheduler.get_lr():.8f}, '
+                            f'learning rate: {self.scheduler.get_lr():.8f}, {margin_str} '
                             f'speed: {train_speed:.2f} data/sec, eta: {eta_str}')
                 writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
                 writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
                 # 记录学习率
                 writer.add_scalar('Train/lr', self.scheduler.get_lr(), self.train_step)
+                if self.margin_scheduler:
+                    writer.add_scalar('Train/margin', self.margin_scheduler.get_margin(), self.train_step)
                 self.train_step += 1
                 train_times, accuracies, loss_sum = [], [], []
             # 固定步数也要保存一次模型
