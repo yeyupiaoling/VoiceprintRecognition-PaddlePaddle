@@ -73,6 +73,11 @@ class PPVectorTrainer(object):
         if platform.system().lower() == 'windows':
             self.configs.dataset_conf.dataLoader.num_workers = 0
             logger.warning('Windows系统不支持多线程读取数据，已自动关闭！')
+        self.max_step, self.train_step = None, None
+        self.train_loss, self.train_acc = None, None
+        self.eval_eer, self.eval_min_dcf, self.eval_threshold = None, None, None
+        self.test_log_step, self.train_log_step = 0, 0
+        self.stop_train, self.stop_eval = False, False
 
     def __setup_dataloader(self, is_train=False):
         if is_train:
@@ -318,8 +323,8 @@ class PPVectorTrainer(object):
         train_times, accuracies, loss_sum = [], [], []
         start = time.time()
         use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
-        sum_batch = len(self.train_loader) * self.configs.train_conf.max_epoch
         for batch_id, (audio, label, input_lens_ratio) in enumerate(self.train_loader()):
+            if self.stop_train: break
             features, _ = self.audio_featurizer(audio, input_lens_ratio)
             if self.configs.dataset_conf.use_spec_aug:
                 features = self.spec_aug(features)
@@ -357,6 +362,7 @@ class PPVectorTrainer(object):
             accuracies.append(float(acc))
             loss_sum.append(float(los))
             train_times.append((time.time() - start) * 1000)
+            self.train_step += 1
 
             # 多卡训练只使用一个进程打印
             if batch_id % self.configs.train_conf.log_interval == 0 and local_rank == 0:
@@ -364,23 +370,23 @@ class PPVectorTrainer(object):
                 train_speed = self.configs.dataset_conf.dataLoader.batch_size / (
                             sum(train_times) / len(train_times) / 1000)
                 # 计算剩余时间
-                eta_sec = (sum(train_times) / len(train_times)) * (
-                        sum_batch - (epoch_id - 1) * len(self.train_loader) - batch_id)
+                eta_sec = (sum(train_times) / len(train_times)) * (self.max_step - self.train_step)
                 eta_str = str(timedelta(seconds=int(eta_sec / 1000)))
+                self.train_loss = sum(loss_sum) / len(loss_sum)
+                self.train_acc = sum(accuracies) / len(accuracies)
                 margin_str = f'margin: {self.margin_scheduler.get_margin()}' if self.margin_scheduler else ''
                 logger.info(f'Train epoch: [{epoch_id}/{self.configs.train_conf.max_epoch}], '
                             f'batch: [{batch_id}/{len(self.train_loader)}], '
-                            f'loss: {sum(loss_sum) / len(loss_sum):.5f}, '
-                            f'accuracy: {sum(accuracies) / len(accuracies):.5f}, '
+                            f'loss: {self.train_loss:.5f}, accuracy: {self.train_acc:.5f}, '
                             f'learning rate: {self.scheduler.get_lr():.8f}, {margin_str} '
                             f'speed: {train_speed:.2f} data/sec, eta: {eta_str}')
-                writer.add_scalar('Train/Loss', sum(loss_sum) / len(loss_sum), self.train_step)
-                writer.add_scalar('Train/Accuracy', (sum(accuracies) / len(accuracies)), self.train_step)
+                writer.add_scalar('Train/Loss', self.train_loss, self.train_log_step)
+                writer.add_scalar('Train/Accuracy', self.train_acc, self.train_log_step)
                 # 记录学习率
-                writer.add_scalar('Train/lr', self.scheduler.get_lr(), self.train_step)
+                writer.add_scalar('Train/lr', self.scheduler.get_lr(), self.train_log_step)
                 if self.margin_scheduler:
-                    writer.add_scalar('Train/margin', self.margin_scheduler.get_margin(), self.train_step)
-                self.train_step += 1
+                    writer.add_scalar('Train/margin', self.margin_scheduler.get_margin(), self.train_log_step)
+                self.train_log_step += 1
                 train_times, accuracies, loss_sum = [], [], []
             # 固定步数也要保存一次模型
             if batch_id % 10000 == 0 and batch_id != 0 and local_rank == 0:
@@ -431,13 +437,18 @@ class PPVectorTrainer(object):
         # 加载恢复模型
         last_epoch, best_eer = self.__load_checkpoint(save_model_path=save_model_path, resume_model=resume_model)
 
-        eer, min_dcf, threshold = None, None, None
-        test_step, self.train_step = 0, 0
+        self.train_loss, self.train_acc = None, None
+        self.test_log_step, self.train_log_step = 0, 0
+        self.eval_eer, self.eval_min_dcf, self.eval_threshold = None, None, None
         last_epoch += 1
         if local_rank == 0:
             writer.add_scalar('Train/lr', self.scheduler.get_lr(), last_epoch)
+        # 最大步数
+        self.max_step = len(self.train_loader) * self.configs.train_conf.max_epoch
+        self.train_step = max(last_epoch, 0) * len(self.train_loader)
         # 开始训练
         for epoch_id in range(last_epoch, self.configs.train_conf.max_epoch):
+            if self.stop_train: break
             epoch_id += 1
             start_epoch = time.time()
             # 训练一个epoch
@@ -446,25 +457,25 @@ class PPVectorTrainer(object):
             # 多卡训练只使用一个进程执行评估和保存模型
             if local_rank == 0 and do_eval:
                 logger.info('=' * 70)
-                eer, min_dcf, threshold = self.evaluate()
+                self.eval_eer, self.eval_min_dcf, self.eval_threshold = self.evaluate()
                 logger.info('Test epoch: {}, time/epoch: {}, threshold: {:.2f}, EER: {:.5f}, '
                             'MinDCF: {:.5f}'.format(epoch_id, str(timedelta(
-                    seconds=(time.time() - start_epoch))), threshold, eer, min_dcf))
+                    seconds=(time.time() - start_epoch))), self.eval_threshold, self.eval_eer, self.eval_min_dcf))
                 logger.info('=' * 70)
-                writer.add_scalar('Test/threshold', threshold, test_step)
-                writer.add_scalar('Test/min_dcf', min_dcf, test_step)
-                writer.add_scalar('Test/eer', eer, test_step)
-                test_step += 1
+                writer.add_scalar('Test/threshold', self.eval_threshold, self.test_log_step)
+                writer.add_scalar('Test/min_dcf', self.eval_min_dcf, self.test_log_step)
+                writer.add_scalar('Test/eer', self.eval_eer, self.test_log_step)
+                self.test_log_step += 1
                 self.model.train()
                 # # 保存最优模型
-                if eer <= best_eer:
-                    best_eer = eer
-                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=eer, min_dcf=min_dcf,
-                                           threshold=threshold, best_model=True)
+                if self.eval_eer <= best_eer:
+                    best_eer = self.eval_eer
+                    self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=self.eval_eer,
+                                           min_dcf=self.eval_min_dcf, threshold=self.eval_threshold, best_model=True)
             if local_rank == 0:
                 # 保存模型
-                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=eer, min_dcf=min_dcf,
-                                       threshold=threshold)
+                self.__save_checkpoint(save_model_path=save_model_path, epoch_id=epoch_id, eer=self.eval_eer,
+                                       min_dcf=self.eval_min_dcf, threshold=self.eval_threshold)
 
     def evaluate(self, resume_model=None, save_image_path=None):
         """
@@ -494,6 +505,7 @@ class PPVectorTrainer(object):
         enroll_features, enroll_labels = None, None
         with paddle.no_grad():
             for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.enroll_loader, desc="注册音频声纹特征")):
+                if self.stop_eval: break
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
                 if self.configs.use_model == 'EcapaTdnn':
                     feature = eval_model([audio_features, input_lens_ratio]).numpy()
@@ -507,6 +519,7 @@ class PPVectorTrainer(object):
         trials_features, trials_labels = None, None
         with paddle.no_grad():
             for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.trials_loader, desc="验证音频声纹特征")):
+                if self.stop_eval: break
                 audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
                 if self.configs.use_model == 'EcapaTdnn':
                     feature = eval_model([audio_features, input_lens_ratio]).numpy()
@@ -522,12 +535,14 @@ class PPVectorTrainer(object):
         print('开始对比音频特征...')
         all_score, all_labels = [], []
         for i in tqdm(range(len(trials_features)), desc='特征对比'):
+            if self.stop_eval: break
             trials_feature = np.expand_dims(trials_features[i], 0).repeat(len(enroll_features), axis=0)
             score = cosine_similarity(trials_feature, enroll_features).tolist()[0]
             trials_label = np.expand_dims(trials_labels[i], 0).repeat(len(enroll_features), axis=0)
             y_true = np.array(enroll_labels == trials_label).astype(np.int32).tolist()
             all_score.extend(score)
             all_labels.extend(y_true)
+        if self.stop_eval: return -1, -1, -1,
         # 计算EER
         all_score = np.array(all_score)
         all_labels = np.array(all_labels)
