@@ -242,7 +242,7 @@ class EcapaTdnn(nn.Layer):
         else:
             raise Exception(f'没有{pooling_type}池化层！')
 
-    def forward(self, x):
+    def forward(self, x, lengths=None):
         """
         Compute embeddings.
 
@@ -253,10 +253,6 @@ class EcapaTdnn(nn.Layer):
         Returns:
             paddle.Tensor: Output embeddings with shape (N, self.emb_size, 1)
         """
-        if isinstance(x, list):
-            x, lengths = x
-        else:
-            lengths = None
         x = x.transpose([0, 2, 1])
         xl = []
         for layer in self.blocks:

@@ -21,7 +21,7 @@ from visualdl import LogWriter
 from ppvector import SUPPORT_MODEL, __version__
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
-from ppvector.data_utils.reader import CustomDataset
+from ppvector.data_utils.reader import PPVectorDataset
 from ppvector.data_utils.spec_aug import SpecAug
 from ppvector.metric.metrics import compute_fnr_fpr, compute_eer, compute_dcf
 from ppvector.models.campplus import CAMPPlus
@@ -62,13 +62,15 @@ class PPVectorTrainer(object):
         assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
         self.model = None
         self.backbone = None
+        self.audio_featurizer = None
+        self.train_dataset = None
+        self.train_loader = None
+        self.enroll_dataset = None
         self.enroll_loader = None
+        self.trials_dataset = None
         self.trials_loader = None
         self.margin_scheduler = None
         self.amp_scaler = None
-        # 获取特征器
-        self.audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
-                                                method_args=self.configs.preprocess_conf.get('method_args', {}))
         self.spec_aug = SpecAug(**self.configs.dataset_conf.get('spec_aug_args', {}))
         if platform.system().lower() == 'windows':
             self.configs.dataset_conf.dataLoader.num_workers = 0
@@ -81,17 +83,21 @@ class PPVectorTrainer(object):
         self.stop_train, self.stop_eval = False, False
 
     def __setup_dataloader(self, is_train=False):
+        # 获取特征器
+        self.audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
+                                                method_args=self.configs.preprocess_conf.get('method_args', {}))
         if is_train:
-            self.train_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.train_list,
-                                               do_vad=self.configs.dataset_conf.do_vad,
-                                               max_duration=self.configs.dataset_conf.max_duration,
-                                               min_duration=self.configs.dataset_conf.min_duration,
-                                               sample_rate=self.configs.dataset_conf.sample_rate,
-                                               aug_conf=self.configs.dataset_conf.aug_conf,
-                                               num_speakers=self.configs.model_conf.classifier.num_speakers,
-                                               use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
-                                               target_dB=self.configs.dataset_conf.target_dB,
-                                               mode='train')
+            self.train_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.train_list,
+                                                 audio_featurizer=self.audio_featurizer,
+                                                 do_vad=self.configs.dataset_conf.do_vad,
+                                                 max_duration=self.configs.dataset_conf.max_duration,
+                                                 min_duration=self.configs.dataset_conf.min_duration,
+                                                 sample_rate=self.configs.dataset_conf.sample_rate,
+                                                 aug_conf=self.configs.dataset_conf.aug_conf,
+                                                 num_speakers=self.configs.model_conf.classifier.num_speakers,
+                                                 use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                                 target_dB=self.configs.dataset_conf.target_dB,
+                                                 mode='train')
             # 设置支持多卡训练
             train_sampler = None
             if paddle.distributed.get_world_size() > 1:
@@ -105,30 +111,59 @@ class PPVectorTrainer(object):
                                            batch_sampler=train_sampler,
                                            **self.configs.dataset_conf.dataLoader)
         # 获取评估的注册数据和检验数据
-        self.enroll_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.enroll_list,
-                                            do_vad=self.configs.dataset_conf.do_vad,
-                                            max_duration=self.configs.dataset_conf.eval_conf.max_duration,
-                                            min_duration=self.configs.dataset_conf.min_duration,
-                                            sample_rate=self.configs.dataset_conf.sample_rate,
-                                            use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
-                                            target_dB=self.configs.dataset_conf.target_dB,
-                                            mode='eval')
+        self.enroll_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.enroll_list,
+                                              audio_featurizer=self.audio_featurizer,
+                                              do_vad=self.configs.dataset_conf.do_vad,
+                                              max_duration=self.configs.dataset_conf.eval_conf.max_duration,
+                                              min_duration=self.configs.dataset_conf.min_duration,
+                                              sample_rate=self.configs.dataset_conf.sample_rate,
+                                              use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                              target_dB=self.configs.dataset_conf.target_dB,
+                                              mode='eval')
         self.enroll_loader = DataLoader(dataset=self.enroll_dataset,
                                         collate_fn=collate_fn,
                                         batch_size=self.configs.dataset_conf.eval_conf.batch_size,
                                         num_workers=self.configs.dataset_conf.dataLoader.num_workers)
-        self.trials_dataset = CustomDataset(data_list_path=self.configs.dataset_conf.trials_list,
-                                            do_vad=self.configs.dataset_conf.do_vad,
-                                            max_duration=self.configs.dataset_conf.eval_conf.max_duration,
-                                            min_duration=self.configs.dataset_conf.min_duration,
-                                            sample_rate=self.configs.dataset_conf.sample_rate,
-                                            use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
-                                            target_dB=self.configs.dataset_conf.target_dB,
-                                            mode='eval')
+        self.trials_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.trials_list,
+                                              audio_featurizer=self.audio_featurizer,
+                                              do_vad=self.configs.dataset_conf.do_vad,
+                                              max_duration=self.configs.dataset_conf.eval_conf.max_duration,
+                                              min_duration=self.configs.dataset_conf.min_duration,
+                                              sample_rate=self.configs.dataset_conf.sample_rate,
+                                              use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                              target_dB=self.configs.dataset_conf.target_dB,
+                                              mode='eval')
         self.trials_loader = DataLoader(dataset=self.trials_dataset,
                                         collate_fn=collate_fn,
                                         batch_size=self.configs.dataset_conf.eval_conf.batch_size,
                                         num_workers=self.configs.dataset_conf.dataLoader.num_workers)
+
+    # 提取特征保存文件
+    def extract_features(self, save_dir='dataset/features'):
+        self.audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
+                                                method_args=self.configs.preprocess_conf.get('method_args', {}))
+        for i, data_list in enumerate([self.configs.dataset_conf.train_list,
+                                       self.configs.dataset_conf.enroll_list,
+                                       self.configs.dataset_conf.trials_list]):
+            # 获取测试数据
+            test_dataset = PPVectorDataset(data_list_path=data_list,
+                                           audio_featurizer=self.audio_featurizer,
+                                           do_vad=self.configs.dataset_conf.do_vad,
+                                           sample_rate=self.configs.dataset_conf.sample_rate,
+                                           use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
+                                           target_dB=self.configs.dataset_conf.target_dB,
+                                           mode='extract_feature')
+            save_data_list = data_list.replace('.txt', '_features.txt')
+            with open(save_data_list, 'w', encoding='utf-8') as f:
+                for i in tqdm(range(len(test_dataset))):
+                    feature, label = test_dataset[i]
+                    feature = feature.numpy()
+                    label = int(label)
+                    save_path = os.path.join(save_dir, str(label), f'{int(time.time() * 1000)}.npy').replace('\\', '/')
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    np.save(save_path, feature)
+                    f.write(f'{save_path}\t{label}\n')
+            logger.info(f'{data_list}列表中的数据已提取特征完成，新列表为：{save_data_list}')
 
     def __setup_model(self, input_size, is_train=False):
         # 获取模型
@@ -225,7 +260,7 @@ class PPVectorTrainer(object):
         else:
             # 不训练模型不包含分类器
             self.model = nn.Sequential(self.backbone)
-        summary(self.model, (1, 98, self.audio_featurizer.feature_dim))
+        summary(self.model, (1, 98, input_size))
 
     def __load_pretrained(self, pretrained_model):
         # 加载预训练模型
@@ -324,17 +359,13 @@ class PPVectorTrainer(object):
         train_times, accuracies, loss_sum = [], [], []
         start = time.time()
         use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
-        for batch_id, (audio, label, input_lens_ratio) in enumerate(self.train_loader()):
+        for batch_id, (features, label, input_lens) in enumerate(self.train_loader()):
             if self.stop_train: break
-            features, _ = self.audio_featurizer(audio, input_lens_ratio)
             if self.configs.dataset_conf.use_spec_aug:
                 features = self.spec_aug(features)
             # 执行模型计算，是否开启自动混合精度
             with paddle.amp.auto_cast(enable=self.configs.train_conf.enable_amp, level='O1'):
-                if self.configs.use_model == 'EcapaTdnn':
-                    output = self.model([features, input_lens_ratio])
-                else:
-                    output = self.model(features)
+                output = self.model(features)
             # 计算损失值
             los = self.loss(output, label)
             # 是否开启自动混合精度
@@ -506,13 +537,9 @@ class PPVectorTrainer(object):
         # 获取注册的声纹特征和标签
         enroll_features, enroll_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.enroll_loader, desc="注册音频声纹特征")):
+            for batch_id, (audio_features, label, input_lens) in enumerate(tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 if self.stop_eval: break
-                audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                if self.configs.use_model == 'EcapaTdnn':
-                    feature = eval_model([audio_features, input_lens_ratio]).numpy()
-                else:
-                    feature = eval_model(audio_features).numpy()
+                feature = eval_model(audio_features).numpy()
                 label = label.numpy()
                 # 存放特征
                 enroll_features = np.concatenate((enroll_features, feature)) if enroll_features is not None else feature
@@ -520,13 +547,9 @@ class PPVectorTrainer(object):
         # 获取检验的声纹特征和标签
         trials_features, trials_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio, label, input_lens_ratio) in enumerate(tqdm(self.trials_loader, desc="验证音频声纹特征")):
+            for batch_id, (audio_features, label, input_lens) in enumerate(tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 if self.stop_eval: break
-                audio_features, _ = self.audio_featurizer(audio, input_lens_ratio)
-                if self.configs.use_model == 'EcapaTdnn':
-                    feature = eval_model([audio_features, input_lens_ratio]).numpy()
-                else:
-                    feature = eval_model(audio_features).numpy()
+                feature = eval_model(audio_features).numpy()
                 label = label.numpy()
                 # 存放特征
                 trials_features = np.concatenate((trials_features, feature)) if trials_features is not None else feature

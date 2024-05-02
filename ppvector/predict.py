@@ -226,13 +226,9 @@ class PPVectorPredictor:
         # 加载音频文件，并进行预处理
         input_data = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
         input_data = paddle.to_tensor(input_data.samples, dtype=paddle.float32).unsqueeze(0)
-        input_len_ratio = paddle.to_tensor([1], dtype=paddle.float32)
-        audio_feature, _ = self._audio_featurizer(input_data, input_len_ratio)
+        audio_feature = self._audio_featurizer(input_data)
         # 执行预测
-        if self.configs.use_model == 'EcapaTdnn':
-            feature = self.predictor([audio_feature, input_len_ratio]).numpy()[0]
-        else:
-            feature = self.predictor(audio_feature).numpy()[0]
+        feature = self.predictor(audio_feature).numpy()[0]
         return feature
 
     def predict_batch(self, audios_data, sample_rate=16000):
@@ -252,7 +248,7 @@ class PPVectorPredictor:
         max_audio_length = batch[0].shape[0]
         batch_size = len(batch)
         # 以最大的长度创建0张量
-        inputs = np.zeros((batch_size, max_audio_length), dtype='float32')
+        inputs = np.zeros((batch_size, max_audio_length), dtype=np.float32)
         input_lens_ratio = []
         for x in range(batch_size):
             tensor = audios_data1[x]
@@ -260,9 +256,9 @@ class PPVectorPredictor:
             # 将数据插入都0张量中，实现了padding
             inputs[x, :seq_length] = tensor[:]
             input_lens_ratio.append(seq_length / max_audio_length)
-        audios_data = paddle.to_tensor(inputs, dtype=paddle.float32)
+        inputs = paddle.to_tensor(inputs, dtype=paddle.float32)
         input_lens_ratio = paddle.to_tensor(input_lens_ratio, dtype=paddle.float32)
-        audio_feature, _ = self._audio_featurizer(audios_data, input_lens_ratio)
+        audio_feature = self._audio_featurizer(inputs, input_lens_ratio)
         # 执行预测
         if self.configs.use_model == 'EcapaTdnn':
             features = self.predictor([audio_feature, input_lens_ratio]).numpy()
