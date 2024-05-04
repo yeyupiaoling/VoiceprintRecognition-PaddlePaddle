@@ -26,7 +26,7 @@ from ppvector.data_utils.spec_aug import SpecAug
 from ppvector.metric.metrics import compute_fnr_fpr, compute_eer, compute_dcf
 from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
-from ppvector.models.eres2net import ERes2Net
+from ppvector.models.eres2net import ERes2Net, ERes2NetV2
 from ppvector.models.fc import SpeakerIdentification
 from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss, SphereFace2
 from ppvector.models.res2net import Res2Net
@@ -169,6 +169,8 @@ class PPVectorTrainer(object):
         # 获取模型
         if self.configs.use_model == 'ERes2Net':
             self.backbone = ERes2Net(input_size=input_size, **self.configs.model_conf.backbone)
+        elif self.configs.use_model == 'ERes2NetV2':
+            self.backbone = ERes2NetV2(input_size=input_size, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'CAMPPlus':
             self.backbone = CAMPPlus(input_size=input_size, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'EcapaTdnn':
@@ -294,7 +296,11 @@ class PPVectorTrainer(object):
             if resume_model is None: resume_model = last_model_dir
             assert os.path.exists(os.path.join(resume_model, 'model.pdparams')), "模型参数文件不存在！"
             assert os.path.exists(os.path.join(resume_model, 'optimizer.pdopt')), "优化方法参数文件不存在！"
-            self.model.set_state_dict(paddle.load(os.path.join(resume_model, 'model.pdparams')))
+            missing_keys, unexpected_keys = self.model.set_state_dict(
+                paddle.load(os.path.join(resume_model, 'model.pdparams')))
+            if len(missing_keys) != 0 or len(unexpected_keys) != 0:
+                logger.warning(f'模型加载部分失败，请检查模型是否匹配，'
+                               f'missing_keys: {missing_keys}, unexpected_keys: {unexpected_keys}')
             self.optimizer.set_state_dict(paddle.load(os.path.join(resume_model, 'optimizer.pdopt')))
             # 自动混合精度参数
             if self.amp_scaler is not None and os.path.exists(os.path.join(resume_model, 'scaler.pdparams')):
@@ -400,7 +406,7 @@ class PPVectorTrainer(object):
             if batch_id % self.configs.train_conf.log_interval == 0 and local_rank == 0:
                 # 计算每秒训练数据量
                 train_speed = self.configs.dataset_conf.dataLoader.batch_size / (
-                            sum(train_times) / len(train_times) / 1000)
+                        sum(train_times) / len(train_times) / 1000)
                 # 计算剩余时间
                 self.train_eta_sec = (sum(train_times) / len(train_times)) * (self.max_step - self.train_step) / 1000
                 eta_str = str(timedelta(seconds=int(self.train_eta_sec)))
@@ -526,7 +532,10 @@ class PPVectorTrainer(object):
                 resume_model = os.path.join(resume_model, 'model.pdparams')
             assert os.path.exists(resume_model), f"{resume_model} 模型不存在！"
             model_state_dict = paddle.load(resume_model)
-            self.model.set_state_dict(model_state_dict)
+            missing_keys, unexpected_keys = self.model.set_state_dict(model_state_dict)
+            if len(missing_keys) != 0 or len(unexpected_keys) != 0:
+                logger.warning(f'模型加载部分失败，请检查模型是否匹配，'
+                               f'missing_keys: {missing_keys}, unexpected_keys: {unexpected_keys}')
             logger.info(f'成功加载模型：{resume_model}')
         self.model.eval()
         if isinstance(self.model, paddle.DataParallel):
@@ -537,7 +546,8 @@ class PPVectorTrainer(object):
         # 获取注册的声纹特征和标签
         enroll_features, enroll_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio_features, label, input_lens) in enumerate(tqdm(self.enroll_loader, desc="注册音频声纹特征")):
+            for batch_id, (audio_features, label, input_lens) in enumerate(
+                    tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
                 label = label.numpy()
@@ -547,7 +557,8 @@ class PPVectorTrainer(object):
         # 获取检验的声纹特征和标签
         trials_features, trials_labels = None, None
         with paddle.no_grad():
-            for batch_id, (audio_features, label, input_lens) in enumerate(tqdm(self.trials_loader, desc="验证音频声纹特征")):
+            for batch_id, (audio_features, label, input_lens) in enumerate(
+                    tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
                 label = label.numpy()

@@ -15,7 +15,7 @@ from ppvector.data_utils.audio import AudioSegment
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
-from ppvector.models.eres2net import ERes2Net
+from ppvector.models.eres2net import ERes2Net, ERes2NetV2
 from ppvector.models.res2net import Res2Net
 from ppvector.models.resnet_se import ResNetSE
 from ppvector.models.tdnn import TDNN
@@ -64,6 +64,8 @@ class PPVectorPredictor:
         # 获取模型
         if self.configs.use_model == 'ERes2Net':
             backbone = ERes2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
+        elif self.configs.use_model == 'ERes2NetV2':
+            backbone = ERes2NetV2(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'CAMPPlus':
             backbone = CAMPPlus(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
         elif self.configs.use_model == 'EcapaTdnn':
