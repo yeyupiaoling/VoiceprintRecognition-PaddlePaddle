@@ -122,6 +122,7 @@ class PPVectorTrainer(object):
                                               mode='eval')
         self.enroll_loader = DataLoader(dataset=self.enroll_dataset,
                                         collate_fn=collate_fn,
+                                        shuffle=False,
                                         batch_size=self.configs.dataset_conf.eval_conf.batch_size,
                                         num_workers=self.configs.dataset_conf.dataLoader.num_workers)
         self.trials_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.trials_list,
@@ -135,6 +136,7 @@ class PPVectorTrainer(object):
                                               mode='eval')
         self.trials_loader = DataLoader(dataset=self.trials_dataset,
                                         collate_fn=collate_fn,
+                                        shuffle=False,
                                         batch_size=self.configs.dataset_conf.eval_conf.batch_size,
                                         num_workers=self.configs.dataset_conf.dataLoader.num_workers)
 
