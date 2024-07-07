@@ -28,7 +28,7 @@ from ppvector.models.campplus import CAMPPlus
 from ppvector.models.ecapa_tdnn import EcapaTdnn
 from ppvector.models.eres2net import ERes2Net, ERes2NetV2
 from ppvector.models.fc import SpeakerIdentification
-from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss, SphereFace2
+from ppvector.models.loss import AAMLoss, AMLoss, ARMLoss, CELoss, SubCenterLoss, SphereFace2, TripletAngularMarginLoss
 from ppvector.models.res2net import Res2Net
 from ppvector.models.resnet_se import ResNetSE
 from ppvector.models.tdnn import TDNN
@@ -195,8 +195,9 @@ class PPVectorTrainer(object):
             # 获取分类器
             num_class = self.configs.model_conf.classifier.num_speakers
             # 语速扰动要增加分类数量
-            self.configs.model_conf.classifier.num_speakers = num_class * 3 \
-                if self.configs.dataset_conf.aug_conf.speed_perturb else num_class
+            if self.configs.dataset_conf.aug_conf.speed_perturb:
+                if self.configs.dataset_conf.aug_conf.speed_perturb_3_class:
+                    self.configs.model_conf.classifier.num_speakers = num_class * 3
             classifier = SpeakerIdentification(input_dim=self.backbone.embd_dim,
                                                loss_type=use_loss,
                                                **self.configs.model_conf.classifier)
@@ -212,6 +213,8 @@ class PPVectorTrainer(object):
                 self.loss = SphereFace2(**loss_args)
             elif use_loss == 'SubCenterLoss':
                 self.loss = SubCenterLoss(**loss_args)
+            elif use_loss == 'TripletAngularMarginLoss':
+                self.loss = TripletAngularMarginLoss(**loss_args)
             elif use_loss == 'AMLoss':
                 self.loss = AMLoss(**loss_args)
             elif use_loss == 'ARMLoss':
