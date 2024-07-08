@@ -269,6 +269,7 @@ class TripletAngularMarginLoss(nn.Layer):
         self.ap_value = ap_value
         self.an_value = an_value
         self.absolute_loss_weight = absolute_loss_weight
+        self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, inputs, target):
         """
@@ -279,6 +280,7 @@ class TripletAngularMarginLoss(nn.Layer):
         if self.normalize_feature:
             inputs = paddle.divide(inputs, paddle.norm(inputs, p=2, axis=-1, keepdim=True))
 
+        loss_ce = self.criterion(inputs, target)
         bs = inputs.shape[0]
 
         # compute distance(cos-similarity)
@@ -313,6 +315,7 @@ class TripletAngularMarginLoss(nn.Layer):
             absolut_loss_an = paddle.where(absolut_loss_an > 0, absolut_loss_an, paddle.ones_like(absolut_loss_an))
 
             loss = (absolut_loss_an.mean() + absolut_loss_ap.mean()) * self.absolute_loss_weight + loss.mean()
+        loss = loss + loss_ce
         return loss
 
     def update(self, margin=0.5):
