@@ -21,6 +21,7 @@ from visualdl import LogWriter
 from ppvector import SUPPORT_MODEL, __version__
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
+from ppvector.data_utils.pk_sampler import PKSampler
 from ppvector.data_utils.reader import PPVectorDataset
 from ppvector.data_utils.spec_aug import SpecAug
 from ppvector.metric.metrics import compute_fnr_fpr, compute_eer, compute_dcf
@@ -98,18 +99,22 @@ class PPVectorTrainer(object):
                                                  use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
                                                  target_dB=self.configs.dataset_conf.target_dB,
                                                  mode='train')
-            # 设置支持多卡训练
-            train_sampler = None
-            if paddle.distributed.get_world_size() > 1:
+            # 使用使用PKSampler
+            if self.configs.dataset_conf.get("is_use_pksampler", False):
+                # 设置支持多卡训练
+                train_sampler = PKSampler(dataset=self.train_dataset,
+                                          sample_per_id=self.configs.dataset_conf.get("sample_per_id", 4),
+                                          batch_size=self.configs.dataset_conf.dataLoader.batch_size,
+                                          drop_last=self.configs.dataset_conf.dataLoader.drop_last)
+            else:
                 # 设置支持多卡训练
                 train_sampler = DistributedBatchSampler(dataset=self.train_dataset,
                                                         batch_size=self.configs.dataset_conf.dataLoader.batch_size,
-                                                        shuffle=True)
+                                                        drop_last=self.configs.dataset_conf.dataLoader.drop_last)
             self.train_loader = DataLoader(dataset=self.train_dataset,
                                            collate_fn=collate_fn,
-                                           shuffle=(train_sampler is None),
                                            batch_sampler=train_sampler,
-                                           **self.configs.dataset_conf.dataLoader)
+                                           num_workers=self.configs.dataset_conf.dataLoader.num_workers)
         # 获取评估的注册数据和检验数据
         self.enroll_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.enroll_list,
                                               audio_featurizer=self.audio_featurizer,
@@ -344,7 +349,9 @@ class PPVectorTrainer(object):
             logger.error(f'保存模型时出现错误，错误信息：{e}')
             return
         with open(os.path.join(model_path, 'model.state'), 'w', encoding='utf-8') as f:
-            data = {"last_epoch": epoch_id, "version": __version__}
+            use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
+            data = {"last_epoch": epoch_id, "version": __version__, "use_model": self.configs.use_model,
+                    "feature_method": self.configs.preprocess_conf.feature_method, "loss": use_loss}
             if eer is not None:
                 data['threshold'] = threshold
                 data['eer'] = eer

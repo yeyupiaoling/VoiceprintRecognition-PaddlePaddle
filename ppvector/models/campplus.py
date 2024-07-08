@@ -1,3 +1,5 @@
+import math
+
 import paddle
 import paddle.nn.functional as F
 from paddle import nn
@@ -257,7 +259,7 @@ class FCM(nn.Layer):
 
         self.conv2 = nn.Conv2D(m_channels, m_channels, kernel_size=3, stride=(2, 1), padding=1)
         self.bn2 = nn.BatchNorm2D(m_channels)
-        self.out_channels = m_channels * (feat_dim // 8)
+        self.out_channels = m_channels * (math.ceil(feat_dim / 8))
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
