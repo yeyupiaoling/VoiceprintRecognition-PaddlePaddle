@@ -99,9 +99,10 @@ class PPVectorTrainer(object):
                                                  use_dB_normalization=self.configs.dataset_conf.use_dB_normalization,
                                                  target_dB=self.configs.dataset_conf.target_dB,
                                                  mode='train')
-            # 使用使用PKSampler
-            if self.configs.dataset_conf.get("is_use_pksampler", False):
-                # 设置支持多卡训练
+            # 使用TripletAngularMarginLoss必须使用PKSampler
+            use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
+            if self.configs.dataset_conf.get("is_use_pksampler", False) or use_loss == "TripletAngularMarginLoss":
+                # 使用使用PKSampler
                 train_sampler = PKSampler(dataset=self.train_dataset,
                                           sample_per_id=self.configs.dataset_conf.get("sample_per_id", 4),
                                           batch_size=self.configs.dataset_conf.dataLoader.batch_size,
