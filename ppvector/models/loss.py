@@ -23,27 +23,25 @@ class AAMLoss(nn.Layer):
 
         self.update(margin)
 
-    def forward(self, cosine, label):
+    def forward(self, inputs, labels):
         """
         Args:
-            cosine (paddle.Tensor): cosine distance between the two tensors, shape [batch, num_classes].
-            label (paddle.Tensor): label of speaker id, shape [batch, ].
-
-        Returns:
-            paddle.Tensor: loss value.
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
         """
-        sine = paddle.sqrt(1.0 - paddle.pow(cosine, 2))
-        phi = cosine * self.cos_m - sine * self.sin_m
+        features, logits = inputs['features'], inputs['logits']
+        sine = paddle.sqrt(1.0 - paddle.pow(logits, 2))
+        phi = logits * self.cos_m - sine * self.sin_m
         if self.easy_margin:
-            phi = paddle.where(cosine > 0, phi, cosine)
+            phi = paddle.where(logits > 0, phi, logits)
         else:
-            phi = paddle.where(cosine > self.th, phi, cosine - self.mmm)
+            phi = paddle.where(logits > self.th, phi, logits - self.mmm)
 
-        one_hot = F.one_hot(label, cosine.shape[1])
-        output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
+        one_hot = F.one_hot(labels, logits.shape[1])
+        output = (one_hot * phi) + ((1.0 - one_hot) * logits)
         output *= self.scale
 
-        loss = self.criterion(output, label)
+        loss = self.criterion(output, labels)
         return loss
 
     def update(self, margin=0.2):
@@ -65,7 +63,7 @@ class SphereFace2(nn.Layer):
                 [2] Sphereface2: Binary classification is all you need for deep face recognition
                 https://arxiv.org/pdf/2108.01513
             Args:
-                scale: norm of input feature
+                scale: norm of logits feature
                 margin: margin
                 lanbuda: weight of positive and negative pairs
                 t: parameter for adjust score distribution
@@ -87,31 +85,29 @@ class SphereFace2(nn.Layer):
         gz = 2 * paddle.pow((z + 1) / 2, t) - 1
         return gz
 
-    def forward(self, cosine, label):
+    def forward(self, inputs, labels):
         """
         Args:
-            cosine (paddle.Tensor): cosine distance between the two tensors, shape [batch, num_classes].
-            label (paddle.Tensor): label of speaker id, shape [batch, ].
-
-        Returns:
-            paddle.Tensor: loss value.
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
         """
+        features, logits = inputs['features'], inputs['logits']
         if self.margin_type == 'A':  # arcface type
-            sin = paddle.sqrt(1.0 - paddle.pow(cosine, 2))
+            sin = paddle.sqrt(1.0 - paddle.pow(logits, 2))
             cos_m_theta_p = self.scale * self.fun_g(
-                paddle.where(cosine > self.th, cosine * self.cos_m - sin * self.sin_m, cosine - self.mmm), self.t) + \
+                paddle.where(logits > self.th, logits * self.cos_m - sin * self.sin_m, logits - self.mmm), self.t) + \
                             self.bias[0][0]
-            cos_m_theta_n = self.scale * self.fun_g(cosine * self.cos_m + sin * self.sin_m, self.t) + self.bias[0][0]
+            cos_m_theta_n = self.scale * self.fun_g(logits * self.cos_m + sin * self.sin_m, self.t) + self.bias[0][0]
             cos_p_theta = self.lanbuda * paddle.log(1 + paddle.exp(-1.0 * cos_m_theta_p))
             cos_n_theta = (1 - self.lanbuda) * paddle.log(1 + paddle.exp(cos_m_theta_n))
         else:
             # cosface type
-            cos_m_theta_p = self.scale * (self.fun_g(cosine, self.t) - self.margin) + self.bias[0][0]
-            cos_m_theta_n = self.scale * (self.fun_g(cosine, self.t) + self.margin) + self.bias[0][0]
+            cos_m_theta_p = self.scale * (self.fun_g(logits, self.t) - self.margin) + self.bias[0][0]
+            cos_m_theta_n = self.scale * (self.fun_g(logits, self.t) + self.margin) + self.bias[0][0]
             cos_p_theta = self.lanbuda * paddle.log(1 + paddle.exp(-1.0 * cos_m_theta_p))
             cos_n_theta = (1 - self.lanbuda) * paddle.log(1 + paddle.exp(cos_m_theta_n))
 
-        target_mask = F.one_hot(label, cosine.shape[1])
+        target_mask = F.one_hot(labels, logits.shape[1])
         nontarget_mask = 1 - target_mask
         loss = (target_mask * cos_p_theta + nontarget_mask * cos_n_theta).sum(1).mean()
         return loss
@@ -132,13 +128,19 @@ class AMLoss(nn.Layer):
         self.s = scale
         self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
 
-    def forward(self, outputs, targets):
-        delt_costh = paddle.zeros(outputs.shape)
-        for i, index in enumerate(targets):
+    def forward(self, inputs, labels):
+        """
+        Args:
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
+        """
+        features, logits = inputs['features'], inputs['logits']
+        delt_costh = paddle.zeros(logits.shape)
+        for i, index in enumerate(labels):
             delt_costh[i, index] = self.m
-        costh_m = outputs - delt_costh
+        costh_m = logits - delt_costh
         predictions = self.s * costh_m
-        loss = self.criterion(predictions, targets) / targets.shape[0]
+        loss = self.criterion(predictions, labels) / labels.shape[0]
         return loss
 
     def update(self, margin=0.2):
@@ -152,19 +154,25 @@ class ARMLoss(nn.Layer):
         self.s = scale
         self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
 
-    def forward(self, outputs, targets):
-        delt_costh = paddle.zeros(outputs.shape)
-        for i, index in enumerate(targets):
+    def forward(self, inputs, labels):
+        """
+        Args:
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
+        """
+        features, logits = inputs['features'], inputs['logits']
+        delt_costh = paddle.zeros(logits.shape)
+        for i, index in enumerate(labels):
             delt_costh[i, index] = self.m
-        costh_m = outputs - delt_costh
+        costh_m = logits - delt_costh
         costh_m_s = self.s * costh_m
-        delt_costh_m_s = paddle.zeros([outputs.shape[0], 1], dtype=paddle.float32)
-        for i, index in enumerate(targets):
+        delt_costh_m_s = paddle.zeros([logits.shape[0], 1], dtype=paddle.float32)
+        for i, index in enumerate(labels):
             delt_costh_m_s[i] = costh_m_s[i, index]
         delt_costh_m_s = delt_costh_m_s.tile([1, costh_m_s.shape[1]])
         costh_m_s_reduct = costh_m_s - delt_costh_m_s
         predictions = paddle.where(costh_m_s_reduct < 0.0, paddle.zeros_like(costh_m_s), costh_m_s)
-        loss = self.criterion(predictions, targets) / targets.shape[0]
+        loss = self.criterion(predictions, labels) / labels.shape[0]
         return loss
 
     def update(self, margin=0.2):
@@ -176,8 +184,14 @@ class CELoss(nn.Layer):
         super(CELoss, self).__init__()
         self.criterion = paddle.nn.CrossEntropyLoss(reduction="sum")
 
-    def forward(self, outputs, targets):
-        loss = self.criterion(outputs, targets) / targets.shape[0]
+    def forward(self, inputs, labels):
+        """
+        Args:
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
+        """
+        features, logits = inputs['features'], inputs['logits']
+        loss = self.criterion(logits, labels) / labels.shape[0]
         return loss
 
     def update(self, margin=0.2):
@@ -222,9 +236,15 @@ class SubCenterLoss(nn.Layer):
         self.m = self.margin
         self.mmm = 1.0 + math.cos(math.pi - margin)
 
-    def forward(self, input, label):
+    def forward(self, inputs, labels):
+        """
+        Args:
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
+        """
+        features, logits = inputs['features'], inputs['logits']
         # (batch, out_dim, k)
-        cosine = paddle.reshape(input, (-1, input.shape[1] // self.K, self.K))
+        cosine = paddle.reshape(logits, (-1, logits.shape[1] // self.K, self.K))
         # (batch, out_dim)
         cosine = paddle.max(cosine, 2)
         sine = paddle.sqrt(1.0 - paddle.pow(cosine, 2))
@@ -234,11 +254,11 @@ class SubCenterLoss(nn.Layer):
         else:
             phi = paddle.where(cosine > self.th, phi, cosine - self.mmm)
 
-        one_hot = F.one_hot(label, cosine.shape[1])
+        one_hot = F.one_hot(labels, cosine.shape[1])
         output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
         output *= self.scale
 
-        loss = self.criterion(output, label)
+        loss = self.criterion(output, labels)
         return loss
 
 
@@ -271,24 +291,26 @@ class TripletAngularMarginLoss(nn.Layer):
         self.absolute_loss_weight = absolute_loss_weight
         self.criterion = nn.CrossEntropyLoss()
 
-    def forward(self, inputs, target):
+    def forward(self, inputs, labels):
         """
         Args:
-            inputs: feature matrix with shape (batch_size, feat_dim)
-            target: ground truth labels with shape (batch_size)
+            inputs(dict): 模型输出的特征向量 (batch_size, feat_dim) 和分类层输出的logits(batch_size, class_num)
+            labels(paddle.Tensor): 类别标签 (batch_size)
         """
-        if self.normalize_feature:
-            inputs = paddle.divide(inputs, paddle.norm(inputs, p=2, axis=-1, keepdim=True))
+        features, logits = inputs['features'], inputs['logits']
+        loss_ce = self.criterion(logits, labels)
 
-        loss_ce = self.criterion(inputs, target)
-        bs = inputs.shape[0]
+        if self.normalize_feature:
+            features = paddle.divide(features, paddle.norm(features, p=2, axis=-1, keepdim=True))
+
+        bs = features.shape[0]
 
         # compute distance(cos-similarity)
-        dist = paddle.matmul(inputs, inputs.t())
+        dist = paddle.matmul(features, features.t())
 
         # hard negative mining
-        is_pos = paddle.expand(target, (bs, bs)).equal(paddle.expand(target, (bs, bs)).t())
-        is_neg = paddle.expand(target, (bs, bs)).not_equal(paddle.expand(target, (bs, bs)).t())
+        is_pos = paddle.expand(labels, (bs, bs)).equal(paddle.expand(labels, (bs, bs)).t())
+        is_neg = paddle.expand(labels, (bs, bs)).not_equal(paddle.expand(labels, (bs, bs)).t())
 
         # `dist_ap` means distance(anchor, positive)
         # both `dist_ap` and `relative_p_inds` with shape [N, 1]

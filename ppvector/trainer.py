@@ -384,9 +384,10 @@ class PPVectorTrainer(object):
                 features = self.spec_aug(features)
             # 执行模型计算，是否开启自动混合精度
             with paddle.amp.auto_cast(enable=self.configs.train_conf.enable_amp, level='O1'):
-                output = self.model(features)
+                outputs = self.model(features)
+            logits = outputs['logits']
             # 计算损失值
-            los = self.loss(output, label)
+            los = self.loss(outputs, label)
             # 是否开启自动混合精度
             if self.configs.train_conf.enable_amp:
                 # loss缩放，乘以系数loss_scaling
@@ -406,10 +407,10 @@ class PPVectorTrainer(object):
             # 计算准确率
             if use_loss == 'SubCenterLoss':
                 loss_args = self.configs.loss_conf.get('args', {})
-                cosine = paddle.reshape(output, (-1, output.shape[1] // loss_args.K, loss_args.K))
-                output = paddle.max(cosine, 2)
+                cosine = paddle.reshape(logits, (-1, logits.shape[1] // loss_args.K, loss_args.K))
+                logits = paddle.max(cosine, 2)
             label = paddle.reshape(label, shape=(-1, 1))
-            acc = accuracy(input=paddle.nn.functional.softmax(output), label=label)
+            acc = accuracy(input=paddle.nn.functional.softmax(logits), label=label)
             accuracies.append(float(acc))
             loss_sum.append(float(los))
             train_times.append((time.time() - start) * 1000)

@@ -91,7 +91,12 @@ model_conf:
 
 loss_conf:
   # 所使用的损失函数，支持AAMLoss、SphereFace2、AMLoss、ARMLoss、CELoss、SubCenterLoss、TripletAngularMarginLoss
-  use_loss: 'TripletAngularMarginLoss'
+  use_loss: 'AAMLoss'
+  # 损失函数参数
+  args:
+    margin: 0.2
+    scale: 32
+    easy_margin: False
   # 是否使用损失函数margin调度器
   use_margin_scheduler: True
   # margin调度器参数
