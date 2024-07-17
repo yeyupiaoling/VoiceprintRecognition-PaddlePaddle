@@ -86,6 +86,43 @@
 4. 参数数量不包含了分类器的参数数量。
 
 
+### 预处理方法效果对比实验
+
+|     预处理方法      |   数据集    | train speakers | threshold |   EER   | MinDCF  |
+|:--------------:|:--------:|:--------------:|:---------:|:-------:|:-------:|
+|     Fbank      | CN-Celeb |      2796      |  0.14574  | 0.10988 | 0.58955 | 
+|      MFCC      | CN-Celeb |      2796      |  0.14868  | 0.11483 | 0.61275 | 
+|  Spectrogram   | CN-Celeb |      2796      |  0.14962  | 0.11613 | 0.60057 | 
+| MelSpectrogram | CN-Celeb |      2796      |  0.13458  | 0.12498 | 0.60741 | 
+
+说明：
+
+1. 测试结果来源于[VoiceprintRecognition-Pytorch](github.com/yeyupiaoling/VoiceprintRecognition-Pytorch)，仅供参考。
+2. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+3. 实验数据为[CN-Celeb](http://openslr.org/82/)，实验模型为`CAM++`，损失函数为`AAMLoss`。
+4. 数据使用`extract_features.py`提前提取特征，也就是说训练中没有使用对音频的数据增强。
+
+
+### 损失函数效果对比实验
+
+|           损失函数           |   数据集    | train speakers | threshold |   EER   |    MinDCF     |
+|:------------------------:|:--------:|:--------------:|:---------:|:-------:|:-------------:|
+|         AAMLoss          | CN-Celeb |      2796      |  0.14574  | 0.10988 |    0.58955    |
+|       SphereFace2        | CN-Celeb |      2796      |  0.20377  | 0.11309 |    0.61536    |
+| TripletAngularMarginLoss | CN-Celeb |      2796      |  0.28940  | 0.11749 |    0.63735    |
+|      SubCenterLoss       | CN-Celeb |      2796      |  0.13126  | 0.11775 |    0.56995    |
+|         ARMLoss          | CN-Celeb |      2796      |  0.14563  | 0.11805 |    0.57171    |
+|          AMLoss          | CN-Celeb |      2796      |  0.12870  | 0.12301 |    0.63263    |
+|          CELoss          | CN-Celeb |      2796      |  0.13607  | 0.12684 |    0.65176    |
+
+说明：
+
+1. 测试结果来源于[VoiceprintRecognition-Pytorch](github.com/yeyupiaoling/VoiceprintRecognition-Pytorch)，仅供参考。
+2. 评估的测试集为[CN-Celeb的测试集](https://aistudio.baidu.com/aistudio/datasetdetail/233361)，包含196个说话人。
+3. 实验数据为[CN-Celeb](http://openslr.org/82/)，实验模型为`CAM++`，预处理方法为`Fbank`。
+4. 数据使用`extract_features.py`提前提取特征，也就是说训练中没有使用对音频的数据增强。
+
+
 ## 安装环境
 
  - 首先安装的是PaddlePaddle的GPU版本，如果已经安装过了，请跳过。
