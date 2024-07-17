@@ -548,8 +548,8 @@ class PPVectorTrainer(object):
             model_state_dict = paddle.load(resume_model)
             missing_keys, unexpected_keys = self.model.set_state_dict(model_state_dict)
             if len(missing_keys) != 0 or len(unexpected_keys) != 0:
-                logger.warning(f'模型加载部分失败，请检查模型是否匹配，'
-                               f'missing_keys: {missing_keys}, unexpected_keys: {unexpected_keys}')
+                logger.warning(f'模型加载部分失败，请检查模型是否匹配\n'
+                               f'missing_keys: {missing_keys}\nunexpected_keys: {unexpected_keys}')
             logger.info(f'成功加载模型：{resume_model}')
         self.model.eval()
         if isinstance(self.model, paddle.DataParallel):

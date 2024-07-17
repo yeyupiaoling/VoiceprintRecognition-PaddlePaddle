@@ -3,11 +3,12 @@ import pickle
 import shutil
 from io import BufferedReader
 
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+import faiss
 import numpy as np
 import paddle
 import yaml
 import paddle.nn as nn
-from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
 from ppvector import SUPPORT_MODEL
@@ -30,7 +31,7 @@ class PPVectorPredictor:
                  configs,
                  threshold=0.6,
                  audio_db_path=None,
-                 model_path='models/ecapa_tdnn_spectrogram/best_model/',
+                 model_path='models/CAMPPlus_Fbank/best_model/',
                  use_gpu=True):
         """
         声纹识别预测工具
@@ -46,8 +47,6 @@ class PPVectorPredictor:
         else:
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             paddle.device.set_device("cpu")
-        # 索引候选数量
-        self.cdd_num = 5
         self.threshold = threshold
         # 读取配置文件
         if isinstance(configs, str):
@@ -88,21 +87,24 @@ class PPVectorPredictor:
         model.eval()
         self.predictor = model
 
+        self.index = None
         # 声纹库的声纹特征
         self.audio_feature = None
         # 声纹特征对应的用户名
         self.users_name = []
         # 声纹特征对应的声纹文件路径
         self.users_audio_path = []
+        # 索引对应的用户名称
+        self.index_users_name = []
         # 加载声纹库
         self.audio_db_path = audio_db_path
         if self.audio_db_path is not None:
             self.audio_indexes_path = os.path.join(audio_db_path, "audio_indexes.bin")
             # 加载声纹库中的声纹
-            self.__load_faces(self.audio_db_path)
+            self.__load_audio_db(self.audio_db_path)
 
     # 加载声纹特征索引
-    def __load_face_indexes(self):
+    def __load_audio_indexes(self):
         # 如果存在声纹特征索引文件就加载
         if not os.path.exists(self.audio_indexes_path): return
         with open(self.audio_indexes_path, "rb") as f:
@@ -110,6 +112,8 @@ class PPVectorPredictor:
         self.users_name = indexes["users_name"]
         self.audio_feature = indexes["faces_feature"]
         self.users_audio_path = indexes["users_image_path"]
+        # 创建特征检索索引
+        self.__create_index()
 
     # 保存声纹特征索引
     def __write_index(self):
@@ -117,11 +121,32 @@ class PPVectorPredictor:
             pickle.dump({"users_name": self.users_name,
                          "faces_feature": self.audio_feature,
                          "users_image_path": self.users_audio_path}, f)
+        # 创建特征检索索引
+        self.__create_index()
+
+    # 创建声纹特征Faiss索引
+    def __create_index(self):
+        # 求每个用户特征的平均值
+        self.index_users_name = list(set(self.users_name))
+        features = []
+        for name in self.index_users_name:
+            idx = [i for i, x in enumerate(self.users_name) if x == name]
+            feature = self.audio_feature[idx].mean(axis=0)
+            feature = self.normalize_features(feature[np.newaxis, :])[0]
+            features.append(feature)
+        features = np.array(features, dtype=np.float32)
+        # 获取特征值的维度
+        dimension = features.shape[1]
+        # 将特征值添加Faiss索引对象，使用内积作为相似度度量
+        self.index = faiss.IndexFlatIP(dimension)
+        self.index.add(features)
+        assert len(self.index_users_name) == self.index.ntotal, '索引数量和用名数量不一致！'
+        logger.info(f'声纹特征索引创建完成，一共有{len(self.index_users_name)}个用户，分别是：{self.index_users_name}')
 
     # 加载声纹库中的声纹
-    def __load_faces(self, audio_db_path):
+    def __load_audio_db(self, audio_db_path):
         # 先加载声纹特征索引
-        self.__load_face_indexes()
+        self.__load_audio_indexes()
         os.makedirs(audio_db_path, exist_ok=True)
         audios_path = []
         for name in os.listdir(audio_db_path):
@@ -163,30 +188,25 @@ class PPVectorPredictor:
         self.__write_index()
         logger.info('声纹库数据加载完成！')
 
+    # 特征进行归一化
+    @staticmethod
+    def normalize_features(features):
+        return features / np.linalg.norm(features, axis=1, keepdims=True)
+
     # 声纹检索
     def __retrieval(self, np_feature):
+        if isinstance(np_feature, list):
+            np_feature = np.array(np_feature)
         labels = []
-        for feature in np_feature:
-            similarity = cosine_similarity(self.audio_feature, feature[np.newaxis, :]).squeeze()
-            abs_similarity = np.abs(similarity)
-            # 获取候选索引
-            if len(abs_similarity) < self.cdd_num:
-                candidate_idx = np.argpartition(abs_similarity, -len(abs_similarity))[-len(abs_similarity):]
+        np_feature = self.normalize_features(np_feature.astype(np.float32))
+        similarities, indices = self.index.search(np_feature, 1)
+        for sim, idx in zip(similarities, indices):
+            sim, idx = sim[0], idx[0]
+            if sim >= self.threshold:
+                sim = round(float(sim), 5)
+                labels.append([self.index_users_name[idx], sim])
             else:
-                candidate_idx = np.argpartition(abs_similarity, -self.cdd_num)[-self.cdd_num:]
-            # 过滤低于阈值的索引
-            remove_idx = np.where(abs_similarity[candidate_idx] < self.threshold)
-            candidate_idx = np.delete(candidate_idx, remove_idx)
-            # 获取标签最多的值
-            candidate_label_list = list(np.array(self.users_name)[candidate_idx])
-            candidate_label_dict = {k: v for k, v in zip(candidate_idx, candidate_label_list)}
-            if len(candidate_label_list) == 0:
-                max_label, score = None, None
-            else:
-                max_label = max(candidate_label_list, key=candidate_label_list.count)
-                scores = [abs_similarity[k] for k, v in candidate_label_dict.items() if v == max_label]
-                score = round(sum(scores) / len(scores), 5)
-            labels.append([max_label, score])
+                labels.append([None, None])
         return labels
 
     def _load_audio(self, audio_data, sample_rate=16000):
@@ -331,8 +351,8 @@ class PPVectorPredictor:
         if threshold:
             self.threshold = threshold
         feature = self.predict(audio_data, sample_rate=sample_rate)
-        name, score = self.__retrieval(np_feature=[feature])[0]
-        return name, score
+        result = self.__retrieval(np_feature=np.array([feature]))[0]
+        return result
 
     def get_users(self):
         """获取所有用户
