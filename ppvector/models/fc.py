@@ -7,7 +7,7 @@ class SpeakerIdentification(nn.Layer):
     def __init__(self,
                  input_dim,
                  num_speakers,
-                 loss_type='AAMLoss',
+                 classifier_type='Cosine',
                  K=1,
                  num_blocks=0,
                  inter_dim=512):
@@ -17,24 +17,26 @@ class SpeakerIdentification(nn.Layer):
         Args:
             input_dim (nn.Module, class): embedding model output dim.
             num_speakers (_type_): the speaker class num in the training dataset
+            classifier_type (str, optional): type of output layer to uses.
             num_blocks (int, optional): the linear layer transform between the embedding and the final linear layer. Defaults to 0.
             inter_dim (int, optional): the output dimension of dense layer. Defaults to 512.
         """
         super(SpeakerIdentification, self).__init__()
-        self.loss_type = loss_type
+        self.classifier_type = classifier_type
         self.blocks = nn.LayerList()
 
         for index in range(num_blocks):
             self.blocks.append(DenseLayer(input_dim, inter_dim, config_str='batchnorm'))
             input_dim = inter_dim
 
-        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenterLoss' or \
-                self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss' or self.loss_type == 'SphereFace2':
+        if self.classifier_type == 'Cosine':
             self.weight = paddle.create_parameter(shape=[input_dim, num_speakers * K],
                                                   dtype='float32',
                                                   attr=paddle.ParamAttr(initializer=nn.initializer.XavierUniform()), )
-        else:
+        elif self.classifier_type == 'Linear':
             self.output = nn.Linear(input_dim, num_speakers)
+        else:
+            raise ValueError(f'不支持该输出层：{self.classifier_type}')
 
     def forward(self, features):
         # x: [B, dim]
@@ -43,14 +45,8 @@ class SpeakerIdentification(nn.Layer):
             x = layer(x)
 
         # normalized
-        if self.loss_type == 'AAMLoss' or self.loss_type == 'SubCenterLoss' or self.loss_type == 'SphereFace2':
+        if self.classifier_type == 'Cosine':
             logits = F.linear(F.normalize(x), F.normalize(self.weight, axis=0))
-        elif self.loss_type == 'AMLoss' or self.loss_type == 'ARMLoss':
-            x_norm = paddle.norm(x, p=2, axis=1, keepdim=True).clip(min=1e-12)
-            x_norm = paddle.divide(x, x_norm)
-            w_norm = paddle.norm(self.weight, p=2, axis=0, keepdim=True).clip(min=1e-12)
-            w_norm = paddle.divide(self.weight, w_norm)
-            logits = paddle.mm(x_norm, w_norm)
         else:
             logits = self.output(x)
 

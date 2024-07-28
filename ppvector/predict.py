@@ -3,6 +3,9 @@ import pickle
 import shutil
 from io import BufferedReader
 
+from ppvector.models import build_model
+from ppvector.utils.checkpoint import load_pretrained
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import faiss
 import numpy as np
@@ -14,12 +17,6 @@ from tqdm import tqdm
 from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.audio import AudioSegment
 from ppvector.data_utils.featurizer import AudioFeaturizer
-from ppvector.models.campplus import CAMPPlus
-from ppvector.models.ecapa_tdnn import EcapaTdnn
-from ppvector.models.eres2net import ERes2Net, ERes2NetV2
-from ppvector.models.res2net import Res2Net
-from ppvector.models.resnet_se import ResNetSE
-from ppvector.models.tdnn import TDNN
 from ppvector.utils.logger import setup_logger
 from ppvector.utils.utils import dict_to_object, print_arguments
 
@@ -54,38 +51,23 @@ class PPVectorPredictor:
                 configs = yaml.load(f.read(), Loader=yaml.FullLoader)
             print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
-        assert self.configs.use_model in SUPPORT_MODEL, f'没有该模型：{self.configs.use_model}'
+        assert self.configs.model_conf.model in SUPPORT_MODEL, f'没有该模型：{self.configs.model_conf.model}'
         self._audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
                                                  method_args=self.configs.preprocess_conf.get('method_args', {}))
         # 创建模型
         if not os.path.exists(model_path):
             raise Exception("模型文件不存在，请检查{}是否存在！".format(model_path))
         # 获取模型
-        if self.configs.use_model == 'ERes2Net':
-            backbone = ERes2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'ERes2NetV2':
-            backbone = ERes2NetV2(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'CAMPPlus':
-            backbone = CAMPPlus(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'EcapaTdnn':
-            backbone = EcapaTdnn(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'Res2Net':
-            backbone = Res2Net(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'ResNetSE':
-            backbone = ResNetSE(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        elif self.configs.use_model == 'TDNN':
-            backbone = TDNN(input_size=self._audio_featurizer.feature_dim, **self.configs.model_conf.backbone)
-        else:
-            raise Exception(f'{self.configs.use_model} 模型不存在！')
-        model = nn.Sequential(backbone)
+        backbone = build_model(input_size=self._audio_featurizer.feature_dim, configs=self.configs)
+        self.predictor = nn.Sequential(backbone)
         # 加载模型
         if os.path.isdir(model_path):
             model_path = os.path.join(model_path, 'model.pdparams')
         assert os.path.exists(model_path), f"{model_path} 模型不存在！"
-        model.set_state_dict(paddle.load(model_path))
+        self.predictor.set_state_dict(paddle.load(model_path))
+        self.model = load_pretrained(self.predictor, model_path)
         print(f"成功加载模型参数：{model_path}")
-        model.eval()
-        self.predictor = model
+        self.predictor.eval()
 
         self.index = None
         # 声纹库的声纹特征
@@ -109,9 +91,15 @@ class PPVectorPredictor:
         if not os.path.exists(self.audio_indexes_path): return
         with open(self.audio_indexes_path, "rb") as f:
             indexes = pickle.load(f)
-        self.users_name = indexes["users_name"]
-        self.audio_feature = indexes["faces_feature"]
-        self.users_audio_path = indexes["users_image_path"]
+        for name, feature, path in zip(indexes["users_name"], indexes["faces_feature"],
+                                       indexes["users_image_path"]):
+            if not os.path.exists(path): continue
+            self.users_name.append(name)
+            self.users_audio_path.append(path)
+            if self.audio_feature is None:
+                self.audio_feature = feature
+            else:
+                self.audio_feature = np.vstack((self.audio_feature, feature))
         # 创建特征检索索引
         self.__create_index()
 
@@ -226,14 +214,14 @@ class PPVectorPredictor:
             audio_segment = AudioSegment.from_bytes(audio_data)
         else:
             raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
-        assert audio_segment.duration >= self.configs.dataset_conf.min_duration, \
-            f'音频太短，最小应该为{self.configs.dataset_conf.min_duration}s，当前音频为{audio_segment.duration}s'
         # 重采样
-        if audio_segment.sample_rate != self.configs.dataset_conf.sample_rate:
-            audio_segment.resample(self.configs.dataset_conf.sample_rate)
+        if audio_segment.sample_rate != self.configs.dataset_conf.dataset.sample_rate:
+            audio_segment.resample(self.configs.dataset_conf.dataset.sample_rate)
         # decibel normalization
-        if self.configs.dataset_conf.use_dB_normalization:
-            audio_segment.normalize(target_db=self.configs.dataset_conf.target_dB)
+        if self.configs.dataset_conf.dataset.use_dB_normalization:
+            audio_segment.normalize(target_db=self.configs.dataset_conf.dataset.target_dB)
+        assert audio_segment.duration >= self.configs.dataset_conf.dataset.min_duration, \
+            f'音频太短，最小应该为{self.configs.dataset_conf.dataset.min_duration}s，当前音频为{audio_segment.duration}s'
         return audio_segment
 
     def predict(self,

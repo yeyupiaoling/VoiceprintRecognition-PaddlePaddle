@@ -66,7 +66,7 @@ class Conv1d(nn.Layer):
         if self.padding == "same":
             x = self._manage_padding(x, self.kernel_size, self.dilation, self.stride)
         else:
-            raise ValueError("Padding must be 'same'. Got {self.padding}")
+            raise ValueError(f"Padding must be 'same'. Got {self.padding}")
 
         return self.conv(x)
 
