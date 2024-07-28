@@ -16,7 +16,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 from visualdl import LogWriter
 
-from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.data_utils.pk_sampler import PKSampler
@@ -54,7 +53,6 @@ class PPVectorTrainer(object):
                 configs = yaml.load(f.read(), Loader=yaml.FullLoader)
             print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
-        assert self.configs.model_conf.model in SUPPORT_MODEL, f'没有该模型：{self.configs.model_conf.model}'
         self.model = None
         self.backbone = None
         self.optimizer = None

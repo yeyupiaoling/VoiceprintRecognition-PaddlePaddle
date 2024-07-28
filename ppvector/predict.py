@@ -14,7 +14,6 @@ import yaml
 import paddle.nn as nn
 from tqdm import tqdm
 
-from ppvector import SUPPORT_MODEL
 from ppvector.data_utils.audio import AudioSegment
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.utils.logger import setup_logger
@@ -51,7 +50,6 @@ class PPVectorPredictor:
                 configs = yaml.load(f.read(), Loader=yaml.FullLoader)
             print_arguments(configs=configs)
         self.configs = dict_to_object(configs)
-        assert self.configs.model_conf.model in SUPPORT_MODEL, f'没有该模型：{self.configs.model_conf.model}'
         self._audio_featurizer = AudioFeaturizer(feature_method=self.configs.preprocess_conf.feature_method,
                                                  method_args=self.configs.preprocess_conf.get('method_args', {}))
         # 创建模型
