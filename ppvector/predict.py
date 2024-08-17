@@ -268,10 +268,7 @@ class PPVectorPredictor:
         input_lens_ratio = paddle.to_tensor(input_lens_ratio, dtype=paddle.float32)
         audio_feature = self._audio_featurizer(inputs, input_lens_ratio)
         # 执行预测
-        if self.configs.use_model == 'EcapaTdnn':
-            features = self.predictor([audio_feature, input_lens_ratio]).numpy()
-        else:
-            features = self.predictor(audio_feature).numpy()
+        features = self.predictor(audio_feature).numpy()
         return features
 
     def contrast(self, audio_data1, audio_data2):
