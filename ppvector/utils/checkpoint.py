@@ -4,10 +4,8 @@ import shutil
 
 import paddle
 
+from loguru import logger
 from ppvector import __version__
-from ppvector.utils.logger import setup_logger
-
-logger = setup_logger(__name__)
 
 
 def load_pretrained(model, pretrained_model):

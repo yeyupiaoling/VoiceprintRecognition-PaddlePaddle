@@ -7,38 +7,37 @@ import numpy as np
 import paddle
 import paddle.nn as nn
 import yaml
+from loguru import logger
 from paddle import summary
 from paddle.distributed import fleet
 from paddle.io import DataLoader, DistributedBatchSampler, BatchSampler
 from paddle.metric import accuracy
-from ppvector.optimizer.scheduler import MarginScheduler
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 from visualdl import LogWriter
 
+from ppvector.data_utils.augmentation import SpecAugmentor
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.data_utils.pk_sampler import PKSampler
 from ppvector.data_utils.reader import PPVectorDataset
-from ppvector.data_utils.spec_aug import SpecAug
 from ppvector.loss import build_loss
 from ppvector.metric.metrics import compute_fnr_fpr, compute_eer, compute_dcf
 from ppvector.models import build_model
 from ppvector.models.fc import SpeakerIdentification
 from ppvector.optimizer import build_lr_scheduler, build_optimizer
+from ppvector.optimizer.scheduler import MarginScheduler
 from ppvector.utils.checkpoint import load_pretrained, load_checkpoint, save_checkpoint
-from ppvector.utils.logger import setup_logger
 from ppvector.utils.utils import dict_to_object, print_arguments
-
-logger = setup_logger(__name__)
 
 
 class PPVectorTrainer(object):
-    def __init__(self, configs, use_gpu=True):
+    def __init__(self, configs, use_gpu=True, data_augment_configs=None):
         """ ppvector集成工具类
 
         :param configs: 配置字典
         :param use_gpu: 是否使用GPU训练模型
+        :param data_augment_configs: 数据增强配置字典或者其文件路径
         """
         if use_gpu:
             assert paddle.is_compiled_with_cuda(), 'GPU不可用'
@@ -66,7 +65,14 @@ class PPVectorTrainer(object):
         self.trials_loader = None
         self.margin_scheduler = None
         self.amp_scaler = None
-        self.spec_aug = SpecAug(**self.configs.dataset_conf.get('spec_aug_args', {}))
+        # 读取数据增强配置文件
+        if isinstance(data_augment_configs, str):
+            with open(data_augment_configs, 'r', encoding='utf-8') as f:
+                data_augment_configs = yaml.load(f.read(), Loader=yaml.FullLoader)
+            print_arguments(configs=data_augment_configs, title='数据增强配置')
+        self.data_augment_configs = dict_to_object(data_augment_configs)
+        # 特征增强
+        self.spec_aug = SpecAugmentor(**self.data_augment_configs.spec_aug if self.data_augment_configs else {})
         if platform.system().lower() == 'windows':
             self.configs.dataset_conf.dataLoader.num_workers = 0
             logger.warning('Windows系统不支持多线程读取数据，已自动关闭！')
@@ -87,7 +93,8 @@ class PPVectorTrainer(object):
         if is_train:
             self.train_dataset = PPVectorDataset(data_list_path=self.configs.dataset_conf.train_list,
                                                  audio_featurizer=self.audio_featurizer,
-                                                 aug_conf=self.configs.dataset_conf.aug_conf,
+                                                 aug_conf=self.data_augment_configs,
+                                                 num_speakers=self.configs.model_conf.classifier.num_speakers,
                                                  mode='train',
                                                  **dataset_args)
             # 使用TripletAngularMarginLoss必须使用PKSampler
@@ -164,8 +171,8 @@ class PPVectorTrainer(object):
             # 获取分类器
             num_class = self.configs.model_conf.classifier.num_speakers
             # 语速扰动要增加分类数量
-            if self.configs.dataset_conf.aug_conf.speed_perturb:
-                if self.configs.dataset_conf.aug_conf.speed_perturb_3_class:
+            if self.data_augment_configs.speed.prob > 0:
+                if self.data_augment_configs.speed.speed_perturb_3_class:
                     self.configs.model_conf.classifier.num_speakers = num_class * 3
             # 分类器
             classifier = SpeakerIdentification(input_dim=self.backbone.embd_dim,
@@ -201,8 +208,8 @@ class PPVectorTrainer(object):
         use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
         for batch_id, (features, label, input_lens) in enumerate(self.train_loader()):
             if self.stop_train: break
-            if self.configs.dataset_conf.use_spec_aug:
-                features = self.spec_aug(features)
+            # 特征增强
+            features = self.spec_aug(features)
             # 执行模型计算，是否开启自动混合精度
             with paddle.amp.auto_cast(enable=self.configs.train_conf.enable_amp, level='O1'):
                 outputs = self.model(features)
@@ -392,7 +399,7 @@ class PPVectorTrainer(object):
                     tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
-                label = label.numpy()
+                label = label.numpy().astype(np.int32)
                 # 存放特征
                 enroll_features = np.concatenate((enroll_features, feature)) if enroll_features is not None else feature
                 enroll_labels = np.concatenate((enroll_labels, label)) if enroll_labels is not None else label
@@ -403,7 +410,7 @@ class PPVectorTrainer(object):
                     tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
-                label = label.numpy()
+                label = label.numpy().astype(np.int32)
                 # 存放特征
                 trials_features = np.concatenate((trials_features, feature)) if trials_features is not None else feature
                 trials_labels = np.concatenate((trials_labels, label)) if trials_labels is not None else label
@@ -414,19 +421,20 @@ class PPVectorTrainer(object):
         all_score, all_labels = [], []
         for i in tqdm(range(len(trials_features)), desc='特征对比'):
             if self.stop_eval: break
-            trials_feature = np.expand_dims(trials_features[i], 0).repeat(len(enroll_features), axis=0)
-            score = cosine_similarity(trials_feature, enroll_features).tolist()[0]
+            trials_feature = np.expand_dims(trials_features[i], 0)
+            score = cosine_similarity(trials_feature, enroll_features).astype(np.float32).tolist()[0]
             trials_label = np.expand_dims(trials_labels[i], 0).repeat(len(enroll_features), axis=0)
             y_true = np.array(enroll_labels == trials_label).astype(np.int32).tolist()
             all_score.extend(score)
             all_labels.extend(y_true)
         if self.stop_eval: return -1, -1, -1,
         # 计算EER
-        all_score = np.array(all_score)
-        all_labels = np.array(all_labels)
+        all_score = np.array(all_score, dtype=np.float32)
+        all_labels = np.array(all_labels, dtype=np.int32)
         fnr, fpr, thresholds = compute_fnr_fpr(all_score, all_labels)
         eer, threshold = compute_eer(fnr, fpr, all_score)
         min_dcf = compute_dcf(fnr, fpr)
+        eer, min_dcf, threshold = float(eer), float(min_dcf), float(threshold)
 
         if save_image_path:
             import matplotlib.pyplot as plt

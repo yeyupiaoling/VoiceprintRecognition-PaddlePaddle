@@ -14,12 +14,10 @@ import yaml
 import paddle.nn as nn
 from tqdm import tqdm
 
-from ppvector.data_utils.audio import AudioSegment
+from loguru import logger
+from yeaudio.audio import AudioSegment
 from ppvector.data_utils.featurizer import AudioFeaturizer
-from ppvector.utils.logger import setup_logger
 from ppvector.utils.utils import dict_to_object, print_arguments
-
-logger = setup_logger(__name__)
 
 
 class PPVectorPredictor:
