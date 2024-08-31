@@ -564,7 +564,7 @@ class PPVectorTrainer(object):
                     tqdm(self.enroll_loader, desc="注册音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
-                label = label.numpy()
+                label = label.numpy().astype(np.int32)
                 # 存放特征
                 enroll_features = np.concatenate((enroll_features, feature)) if enroll_features is not None else feature
                 enroll_labels = np.concatenate((enroll_labels, label)) if enroll_labels is not None else label
@@ -575,30 +575,29 @@ class PPVectorTrainer(object):
                     tqdm(self.trials_loader, desc="验证音频声纹特征")):
                 if self.stop_eval: break
                 feature = eval_model(audio_features).numpy()
-                label = label.numpy()
+                label = label.numpy().astype(np.int32)
                 # 存放特征
                 trials_features = np.concatenate((trials_features, feature)) if trials_features is not None else feature
                 trials_labels = np.concatenate((trials_labels, label)) if trials_labels is not None else label
         self.model.train()
-        enroll_labels = enroll_labels.astype(np.int32)
-        trials_labels = trials_labels.astype(np.int32)
         print('开始对比音频特征...')
         all_score, all_labels = [], []
         for i in tqdm(range(len(trials_features)), desc='特征对比'):
             if self.stop_eval: break
-            trials_feature = np.expand_dims(trials_features[i], 0).repeat(len(enroll_features), axis=0)
-            score = cosine_similarity(trials_feature, enroll_features).tolist()[0]
+            trials_feature = np.expand_dims(trials_features[i], 0)
+            score = cosine_similarity(trials_feature, enroll_features).astype(np.float32).tolist()[0]
             trials_label = np.expand_dims(trials_labels[i], 0).repeat(len(enroll_features), axis=0)
             y_true = np.array(enroll_labels == trials_label).astype(np.int32).tolist()
             all_score.extend(score)
             all_labels.extend(y_true)
         if self.stop_eval: return -1, -1, -1,
         # 计算EER
-        all_score = np.array(all_score)
-        all_labels = np.array(all_labels)
+        all_score = np.array(all_score, dtype=np.float32)
+        all_labels = np.array(all_labels, dtype=np.int32)
         fnr, fpr, thresholds = compute_fnr_fpr(all_score, all_labels)
         eer, threshold = compute_eer(fnr, fpr, all_score)
         min_dcf = compute_dcf(fnr, fpr)
+        eer, min_dcf, threshold = float(eer), float(min_dcf), float(threshold)
 
         if save_image_path:
             import matplotlib.pyplot as plt
