@@ -16,7 +16,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 from visualdl import LogWriter
 
-from ppvector.data_utils.augmentation import SpecAugmentor
 from ppvector.data_utils.collate_fn import collate_fn
 from ppvector.data_utils.featurizer import AudioFeaturizer
 from ppvector.data_utils.pk_sampler import PKSampler
@@ -71,8 +70,6 @@ class PPVectorTrainer(object):
                 data_augment_configs = yaml.load(f.read(), Loader=yaml.FullLoader)
             print_arguments(configs=data_augment_configs, title='数据增强配置')
         self.data_augment_configs = dict_to_object(data_augment_configs)
-        # 特征增强
-        self.spec_aug = SpecAugmentor(**self.data_augment_configs.spec_aug if self.data_augment_configs else {})
         if platform.system().lower() == 'windows':
             self.configs.dataset_conf.dataLoader.num_workers = 0
             logger.warning('Windows系统不支持多线程读取数据，已自动关闭！')
@@ -208,8 +205,6 @@ class PPVectorTrainer(object):
         use_loss = self.configs.loss_conf.get('use_loss', 'AAMLoss')
         for batch_id, (features, label, input_lens) in enumerate(self.train_loader()):
             if self.stop_train: break
-            # 特征增强
-            features = self.spec_aug(features)
             # 执行模型计算，是否开启自动混合精度
             with paddle.amp.auto_cast(enable=self.configs.train_conf.enable_amp, level='O1'):
                 outputs = self.model(features)

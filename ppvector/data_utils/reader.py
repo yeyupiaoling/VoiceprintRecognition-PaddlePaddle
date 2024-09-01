@@ -7,8 +7,8 @@ from paddle.io import Dataset
 from tqdm import tqdm
 from yeaudio.audio import AudioSegment
 
-from ppvector.data_utils.augmentation import SpeedPerturbAugmentor, VolumePerturbAugmentor, NoisePerturbAugmentor, \
-    ReverbPerturbAugmentor
+from yeaudio.augmentation import SpeedPerturbAugmentor, VolumePerturbAugmentor, NoisePerturbAugmentor, \
+    ReverbPerturbAugmentor, SpecAugmentor
 from ppvector.data_utils.featurizer import AudioFeaturizer
 
 
@@ -48,6 +48,13 @@ class PPVectorDataset(Dataset):
         self._target_sample_rate = sample_rate
         self._use_dB_normalization = use_dB_normalization
         self._target_dB = target_dB
+        self.num_speakers = num_speakers
+        self.aug_conf = aug_conf
+        self.speed_augment = None
+        self.volume_augment = None
+        self.noise_augment = None
+        self.reverb_augment = None
+        self.spec_augment = None
         # 获取特征器
         self.audio_featurizer = audio_featurizer
         # 获取特征裁剪的大小
@@ -58,10 +65,7 @@ class PPVectorDataset(Dataset):
         self.labels = [np.int64(line.strip().split('\t')[1]) for line in self.lines]
         if mode == 'train':
             # 获取数据增强器
-            self.speed_augment = SpeedPerturbAugmentor(num_speakers=num_speakers, **aug_conf.get('speed', {}))
-            self.volume_augment = VolumePerturbAugmentor(**aug_conf.get('volume', {}))
-            self.noise_augment = NoisePerturbAugmentor(**aug_conf.get('noise', {}))
-            self.reverb_augment = ReverbPerturbAugmentor(**aug_conf.get('reverb', {}))
+            self.get_augment()
         # 评估模式下，数据列表需要排序
         if self.mode == 'eval':
             self.sort_list()
@@ -101,6 +105,9 @@ class PPVectorDataset(Dataset):
             samples = paddle.to_tensor(audio_segment.samples, dtype=paddle.float32)
             feature = self.audio_featurizer(samples)
             feature = feature.squeeze(0)
+        if self.mode == 'train' and self.spec_augment is not None:
+            feature = self.spec_augment(feature.numpy())
+            feature = paddle.to_tensor(feature, dtype=paddle.float32)
         spk_id = paddle.to_tensor(int(spk_id), dtype=paddle.int64)
         return feature, spk_id
 
@@ -133,10 +140,27 @@ class PPVectorDataset(Dataset):
         sorted_indexes = np.argsort(lengths)
         self.lines = [self.lines[i] for i in sorted_indexes]
 
+    # 获取数据增强器
+    def get_augment(self):
+        if self.aug_conf.speed is not None:
+            self.speed_augment = SpeedPerturbAugmentor(num_speakers=self.num_speakers, **self.aug_conf.speed)
+        if self.aug_conf.volume is not None:
+            self.volume_augment = VolumePerturbAugmentor(**self.aug_conf.volume)
+        if self.aug_conf.noise is not None:
+            self.noise_augment = NoisePerturbAugmentor(**self.aug_conf.noise)
+        if self.aug_conf.reverb is not None:
+            self.reverb_augment = ReverbPerturbAugmentor(**self.aug_conf.reverb)
+        if self.aug_conf.spec_aug is not None:
+            self.spec_augment = SpecAugmentor(**self.aug_conf.spec_aug)
+
     # 音频增强
     def augment_audio(self, audio_segment, spk_id):
-        audio_segment, spk_id = self.speed_augment(audio_segment, spk_id)
-        audio_segment = self.volume_augment(audio_segment)
-        audio_segment = self.noise_augment(audio_segment)
-        audio_segment = self.reverb_augment(audio_segment)
+        if self.speed_augment is not None:
+            audio_segment, spk_id = self.speed_augment(audio_segment, spk_id)
+        if self.volume_augment is not None:
+            audio_segment = self.volume_augment(audio_segment)
+        if self.noise_augment is not None:
+            audio_segment = self.noise_augment(audio_segment)
+        if self.reverb_augment is not None:
+            audio_segment = self.reverb_augment(audio_segment)
         return audio_segment, spk_id
