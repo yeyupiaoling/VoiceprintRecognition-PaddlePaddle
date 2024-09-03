@@ -56,7 +56,7 @@ def load_checkpoint(configs, model, optimizer, amp_scaler, scheduler,margin_sche
     :param save_model_path: 模型保存路径
     :param resume_model: 恢复训练的模型路径
     """
-    last_epoch1 = -1
+    last_epoch1 = 0
     best_eer1 = 1
 
     def load_model(model_path):
@@ -71,7 +71,7 @@ def load_checkpoint(configs, model, optimizer, amp_scaler, scheduler,margin_sche
             amp_scaler.set_state_dict(paddle.load(os.path.join(model_path, 'scaler.pdparams')))
         with open(os.path.join(model_path, 'model.state'), 'r', encoding='utf-8') as f:
             json_data = json.load(f)
-            last_epoch = json_data['last_epoch'] - 1
+            last_epoch = json_data['last_epoch']
             best_eer = 1
             if 'eer' in json_data.keys():
                 best_eer = json_data['eer']
