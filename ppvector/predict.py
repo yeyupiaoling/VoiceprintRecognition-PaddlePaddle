@@ -3,11 +3,12 @@ import pickle
 import shutil
 from io import BufferedReader
 
+from sklearn.metrics.pairwise import cosine_similarity
+
 from ppvector.models import build_model
+from ppvector.infer_utils.speaker_diarization import SpeakerDiarization
 from ppvector.utils.checkpoint import load_pretrained
 
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
-import faiss
 import numpy as np
 import paddle
 import yaml
@@ -65,21 +66,24 @@ class PPVectorPredictor:
         print(f"成功加载模型参数：{model_path}")
         self.predictor.eval()
 
-        self.index = None
         # 声纹库的声纹特征
         self.audio_feature = None
+        # 每个用户的平均声纹特征
+        self.audio_feature_mean = None
         # 声纹特征对应的用户名
         self.users_name = []
         # 声纹特征对应的声纹文件路径
         self.users_audio_path = []
-        # 索引对应的用户名称
-        self.index_users_name = []
+        # 每个用户的平均声纹特征对应的用户名称
+        self.users_name_mean = []
         # 加载声纹库
         self.audio_db_path = audio_db_path
         if self.audio_db_path is not None:
             self.audio_indexes_path = os.path.join(audio_db_path, "audio_indexes.bin")
             # 加载声纹库中的声纹
             self.__load_audio_db(self.audio_db_path)
+        # 说话人日志
+        self.speaker_diarize = SpeakerDiarization()
 
     # 加载声纹特征索引
     def __load_audio_indexes(self):
@@ -96,8 +100,6 @@ class PPVectorPredictor:
                 self.audio_feature = feature
             else:
                 self.audio_feature = np.vstack((self.audio_feature, feature))
-        # 创建特征检索索引
-        self.__create_index()
 
     # 保存声纹特征索引
     def __write_index(self):
@@ -105,27 +107,6 @@ class PPVectorPredictor:
             pickle.dump({"users_name": self.users_name,
                          "faces_feature": self.audio_feature,
                          "users_image_path": self.users_audio_path}, f)
-        # 创建特征检索索引
-        self.__create_index()
-
-    # 创建声纹特征Faiss索引
-    def __create_index(self):
-        # 求每个用户特征的平均值
-        self.index_users_name = list(set(self.users_name))
-        features = []
-        for name in self.index_users_name:
-            idx = [i for i, x in enumerate(self.users_name) if x == name]
-            feature = self.audio_feature[idx].mean(axis=0)
-            feature = self.normalize_features(feature[np.newaxis, :])[0]
-            features.append(feature)
-        features = np.array(features, dtype=np.float32)
-        # 获取特征值的维度
-        dimension = features.shape[1]
-        # 将特征值添加Faiss索引对象，使用内积作为相似度度量
-        self.index = faiss.IndexFlatIP(dimension)
-        self.index.add(features)
-        assert len(self.index_users_name) == self.index.ntotal, '索引数量和用名数量不一致！'
-        logger.info(f'声纹特征索引创建完成，一共有{len(self.index_users_name)}个用户，分别是：{self.index_users_name}')
 
     # 加载声纹库中的声纹
     def __load_audio_db(self, audio_db_path):
@@ -170,7 +151,18 @@ class PPVectorPredictor:
         assert len(self.audio_feature) == len(self.users_name) == len(self.users_audio_path), '加载的数量对不上！'
         # 将声纹特征保存到索引文件中
         self.__write_index()
-        logger.info('声纹库数据加载完成！')
+        # 计算平均特征，用于检索
+        for name in set(self.users_name):
+            indexes = [idx for idx, val in enumerate(self.users_name) if val == name]
+            feature = self.audio_feature[indexes].mean(axis=0)
+            if self.audio_feature_mean is None:
+                self.audio_feature_mean = feature
+            else:
+                self.audio_feature_mean = np.vstack((self.audio_feature_mean, feature))
+            self.users_name_mean.append(name)
+        if len(self.audio_feature_mean.shape) == 1:
+            self.audio_feature_mean = self.audio_feature_mean[np.newaxis, :]
+        logger.info(f'声纹库数据加载完成，一共有{len(self.audio_feature_mean)}个用户，分别是：{self.users_name_mean}')
 
     # 特征进行归一化
     @staticmethod
@@ -183,12 +175,13 @@ class PPVectorPredictor:
             np_feature = np.array(np_feature)
         labels = []
         np_feature = self.normalize_features(np_feature.astype(np.float32))
-        similarities, indices = self.index.search(np_feature, 1)
-        for sim, idx in zip(similarities, indices):
-            sim, idx = sim[0], idx[0]
+        similarities = cosine_similarity(np_feature, self.audio_feature_mean)
+        for sim in similarities:
+            idx = np.argmax(sim)
+            sim = sim[idx]
             if sim >= self.threshold:
                 sim = round(float(sim), 5)
-                labels.append([self.index_users_name[idx], sim])
+                labels.append([self.users_name_mean[idx], sim])
             else:
                 labels.append([None, None])
         return labels
@@ -208,16 +201,18 @@ class PPVectorPredictor:
             audio_segment = AudioSegment.from_ndarray(audio_data, sample_rate)
         elif isinstance(audio_data, bytes):
             audio_segment = AudioSegment.from_bytes(audio_data)
+        elif isinstance(audio_data, AudioSegment):
+            audio_segment = audio_data
         else:
             raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
+        assert audio_segment.duration >= self.configs.dataset_conf.dataset.min_duration, \
+            f'音频太短，最小应该为{self.configs.dataset_conf.dataset.min_duration}s，当前音频为{audio_segment.duration}s'
         # 重采样
         if audio_segment.sample_rate != self.configs.dataset_conf.dataset.sample_rate:
             audio_segment.resample(self.configs.dataset_conf.dataset.sample_rate)
         # decibel normalization
         if self.configs.dataset_conf.dataset.use_dB_normalization:
             audio_segment.normalize(target_db=self.configs.dataset_conf.dataset.target_dB)
-        assert audio_segment.duration >= self.configs.dataset_conf.dataset.min_duration, \
-            f'音频太短，最小应该为{self.configs.dataset_conf.dataset.min_duration}s，当前音频为{audio_segment.duration}s'
         return audio_segment
 
     def predict(self,
@@ -237,7 +232,7 @@ class PPVectorPredictor:
         feature = self.predictor(audio_feature).numpy()[0]
         return feature
 
-    def predict_batch(self, audios_data, sample_rate=16000):
+    def predict_batch(self, audios_data, sample_rate=16000, batch_size=32):
         """预测一批音频的特征
 
         :param audios_data: 需要预测音频的路径
@@ -252,11 +247,11 @@ class PPVectorPredictor:
         # 找出音频长度最长的
         batch = sorted(audios_data1, key=lambda a: a.shape[0], reverse=True)
         max_audio_length = batch[0].shape[0]
-        batch_size = len(batch)
+        input_size = len(batch)
         # 以最大的长度创建0张量
-        inputs = np.zeros((batch_size, max_audio_length), dtype=np.float32)
+        inputs = np.zeros((input_size, max_audio_length), dtype=np.float32)
         input_lens_ratio = []
-        for x in range(batch_size):
+        for x in range(input_size):
             tensor = audios_data1[x]
             seq_length = tensor.shape[0]
             # 将数据插入都0张量中，实现了padding
@@ -266,7 +261,11 @@ class PPVectorPredictor:
         input_lens_ratio = paddle.to_tensor(input_lens_ratio, dtype=paddle.float32)
         audio_feature = self._audio_featurizer(inputs, input_lens_ratio)
         # 执行预测
-        features = self.predictor(audio_feature).numpy()
+        features = []
+        for i in range(0, input_size, batch_size):
+            feature = self.predictor(audio_feature[i:i + batch_size]).data.cpu().numpy()
+            features.extend(feature)
+        features = np.array(features)
         return features
 
     def contrast(self, audio_data1, audio_data2):
@@ -294,17 +293,8 @@ class PPVectorPredictor:
         :return: 识别的文本结果和解码的得分数
         """
         # 加载音频文件
-        if isinstance(audio_data, str):
-            audio_segment = AudioSegment.from_file(audio_data)
-        elif isinstance(audio_data, BufferedReader):
-            audio_segment = AudioSegment.from_file(audio_data)
-        elif isinstance(audio_data, np.ndarray):
-            audio_segment = AudioSegment.from_ndarray(audio_data, sample_rate)
-        elif isinstance(audio_data, bytes):
-            audio_segment = AudioSegment.from_bytes(audio_data)
-        else:
-            raise Exception(f'不支持该数据类型，当前数据类型为：{type(audio_data)}')
-        feature = self.predict(audio_data=audio_segment.samples, sample_rate=audio_segment.sample_rate)
+        audio_segment = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
+        feature = self.predict(audio_data=audio_segment)
         if self.audio_feature is None:
             self.audio_feature = feature
         else:
@@ -320,6 +310,15 @@ class PPVectorPredictor:
         self.users_audio_path.append(audio_path.replace('\\', '/'))
         self.users_name.append(user_name)
         self.__write_index()
+        # 更新检索的特征
+        if user_name in self.users_name_mean:
+            index = self.users_name_mean.index(user_name)
+            indexes = [idx for idx, val in enumerate(self.users_name) if val == user_name]
+            feature = self.audio_feature[indexes].mean(axis=0)
+            self.audio_feature_mean[index] = feature
+        else:
+            self.users_name_mean.append(user_name)
+            self.audio_feature_mean = np.vstack((self.audio_feature_mean, feature))
         return True, "注册成功"
 
     def recognition(self, audio_data, threshold=None, sample_rate=16000):
@@ -356,6 +355,42 @@ class PPVectorPredictor:
                 self.audio_feature = np.delete(self.audio_feature, index, axis=0)
             self.__write_index()
             shutil.rmtree(os.path.join(self.audio_db_path, user_name))
+            # 删除检索内的特征
+            index = self.users_name_mean.index(user_name)
+            del self.users_name_mean[index]
+            self.audio_feature_mean = np.delete(self.audio_feature_mean, index, axis=0)
             return True
         else:
             return False
+
+    def speaker_diarization(self, audio_data, sample_rate=16000, speaker_num=None, search_audio_db=False):
+        """说话人日志识别
+
+        Args:
+            audio_data: 需要识别的数据，支持文件路径，文件对象，字节，numpy。如果是字节的话，必须是完整并带格式的字节文件
+            sample_rate (int): 如果传入的是numpy数据，需要指定采样率
+            speaker_num (int): 预期的说话人数量，提供说话人数量可以提高准确率
+            search_audio_db (bool): 是否在数据库中搜索与输入音频最匹配的音频进行识别
+        Returns:
+            list: 说话人日志识别结果
+        """
+        input_data = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
+        segments = self.speaker_diarize.segments_audio(input_data)
+        segments_data = [segment[2] for segment in segments]
+        features = self.predict_batch(segments_data, sample_rate=sample_rate)
+        labels, spk_center_embeddings = self.speaker_diarize.clustering(features, speaker_num=speaker_num)
+        outputs = self.speaker_diarize.postprocess(segments, labels)
+        if search_audio_db:
+            assert self.audio_feature is not None, "数据库中没有音频数据，请先指定说话人特征数据库或者注册说话人"
+            names = self.__retrieval(np_feature=spk_center_embeddings)
+            results = []
+            for output in outputs:
+                name = names[output['speaker']][0]
+                result = {
+                    'speaker': name if name else f"陌生人{output['speaker']}",
+                    'start': output['start'],
+                    'end': output['end']
+                }
+                results.append(result)
+            outputs = results
+        return outputs
