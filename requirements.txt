@@ -1,5 +1,3 @@
-numba>=0.52.0
-librosa>=0.9.1
 numpy>=1.19.2
 tqdm>=4.59.0
 visualdl>=2.5.3
@@ -8,8 +6,7 @@ soundfile>=0.12.1
 soundcard>=0.4.2
 pyyaml>=5.4.1
 paddleaudio>=1.0.1
-scikit-learn>=1.0.2
+scikit-learn>=1.5.2
 pydub>=0.25.1
-faiss-cpu>=1.7.0
 loguru>=0.7.2
-yeaudio>=0.0.2
+yeaudio>=0.0.6
