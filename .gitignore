@@ -5,7 +5,7 @@ dist/
 ppvector.egg-info/
 log/
 models/
-test.py
+test*.py
 dataset/
 audio_db/
 output/
