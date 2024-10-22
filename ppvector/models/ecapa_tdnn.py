@@ -269,7 +269,7 @@ class EcapaTdnn(nn.Layer):
         # Attentive Statistical Pooling
         x = self.asp(x, lengths=lengths)
         x = self.asp_bn(x)
-
+        x = x.unsqueeze(2)
         # Final linear transformation
         x = self.fc(x).squeeze(-1)  # (N, emb_size, 1) -> (N, emb_size)
 

@@ -2,7 +2,7 @@ import paddle.nn as nn
 
 from ppvector.models.pooling import AttentiveStatisticsPooling, TemporalAveragePooling
 from ppvector.models.pooling import SelfAttentivePooling, TemporalStatisticsPooling
-from ppvector.models.utils import Conv1d, BatchNorm1d
+from ppvector.models.utils import BatchNorm1d
 
 
 class SEBottleneck(nn.Layer):
@@ -80,33 +80,25 @@ class ResNetSE(nn.Layer):
 
         cat_channels = num_filters[3] * SEBottleneck.expansion * (input_size // 8)
         if pooling_type == "ASP":
-            self.pooling = AttentiveStatisticsPooling(cat_channels, 128)
-            self.pooling_bn = BatchNorm1d(input_size=cat_channels * 2)
-            # Final linear transformation
-            self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.embd_dim,
-                             kernel_size=1)
+            self.pooling = AttentiveStatisticsPooling(cat_channels, attention_channels=128)
+            self.bn2 = BatchNorm1d(cat_channels * 2)
+            self.linear = nn.Linear(cat_channels * 2, embd_dim)
+            self.bn3 = BatchNorm1d(embd_dim)
         elif pooling_type == "SAP":
-            self.asp = SelfAttentivePooling(cat_channels, 128)
-            self.asp_bn = nn.BatchNorm1D(cat_channels)
-            # Final linear transformation
-            self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.embd_dim,
-                             kernel_size=1)
+            self.pooling = SelfAttentivePooling(cat_channels, 128)
+            self.bn2 = BatchNorm1d(cat_channels)
+            self.linear = nn.Linear(cat_channels, embd_dim)
+            self.bn3 = BatchNorm1d(embd_dim)
         elif pooling_type == "TAP":
-            self.asp = TemporalAveragePooling()
-            self.asp_bn = nn.BatchNorm1D(cat_channels)
-            # Final linear transformation
-            self.fc = Conv1d(in_channels=cat_channels,
-                             out_channels=self.embd_dim,
-                             kernel_size=1)
+            self.pooling = TemporalAveragePooling()
+            self.bn2 = BatchNorm1d(cat_channels)
+            self.linear = nn.Linear(cat_channels, embd_dim)
+            self.bn3 = BatchNorm1d(embd_dim)
         elif pooling_type == "TSP":
-            self.asp = TemporalStatisticsPooling()
-            self.asp_bn = nn.BatchNorm1D(cat_channels * 2)
-            # Final linear transformation
-            self.fc = Conv1d(in_channels=cat_channels * 2,
-                             out_channels=self.embd_dim,
-                             kernel_size=1)
+            self.pooling = TemporalStatisticsPooling()
+            self.bn2 = BatchNorm1d(cat_channels * 2)
+            self.linear = nn.Linear(cat_channels * 2, embd_dim)
+            self.bn3 = BatchNorm1d(embd_dim)
         else:
             raise Exception(f'没有{pooling_type}池化层！')
 
@@ -140,8 +132,8 @@ class ResNetSE(nn.Layer):
 
         x = x.reshape([x.shape[0], -1, x.shape[-1]])
 
-        out = self.pooling(x)
-        out = self.pooling_bn(out)
-        # Final linear transformation
-        out = self.fc(out).squeeze(-1)  # (N, emb_size, 1) -> (N, emb_size)
-        return out
+        x = self.pooling(x)
+        x = self.bn2(x)
+        x = self.linear(x)
+        x = self.bn3(x)
+        return x

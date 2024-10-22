@@ -121,7 +121,6 @@ class AttentiveStatisticsPooling(nn.Layer):
 
         # Append mean and std of the batch
         pooled_stats = paddle.concat((mean, std), axis=1)
-        pooled_stats = pooled_stats.unsqueeze(2)
 
         return pooled_stats
 
