@@ -151,7 +151,7 @@ class PPVectorTrainer(object):
                                      **data_loader_args)
             save_data_list = data_list.replace('.txt', '_features.txt')
             with open(save_data_list, 'w', encoding='utf-8') as f:
-                for features, labels, input_lens in tqdm(test_loader):
+                for features, labels, input_lens in tqdm(test_loader()):
                     for i in range(len(features)):
                         feature, label, input_len = features[i], labels[i], input_lens[i]
                         feature = feature.numpy()[:input_len]
