@@ -1,5 +1,6 @@
 import os
 import platform
+import sys
 import time
 from datetime import timedelta
 
@@ -31,13 +32,21 @@ from ppvector.utils.utils import dict_to_object, print_arguments, convert_string
 
 
 class PPVectorTrainer(object):
-    def __init__(self, configs, use_gpu=True, data_augment_configs=None, overwrites=None):
-        """ ppvector集成工具类
+    def __init__(self,
+                 configs,
+                 use_gpu=True,
+                 data_augment_configs=None,
+                 num_speakers=None,
+                 overwrites=None,
+                 log_level="info"):
+        """声纹识别训练工具
 
-        :param configs: 配置字典
+        :param configs: 配置文件路径，或者模型名称，如果是模型名称则会使用默认的配置文件
         :param use_gpu: 是否使用GPU训练模型
         :param data_augment_configs: 数据增强配置字典或者其文件路径
+        :param num_speakers: 说话人数量，对应配置文件中的model_conf.classifier.num_speakers
         :param overwrites: 覆盖配置文件中的参数，比如"train_conf.max_epoch=100"，多个用逗号隔开
+        :param log_level: 打印的日志等级，可选值有："debug", "info", "warning", "error"
         """
         if use_gpu:
             assert paddle.is_compiled_with_cuda(), 'GPU不可用'
@@ -46,11 +55,21 @@ class PPVectorTrainer(object):
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             paddle.device.set_device("cpu")
         self.use_gpu = use_gpu
+        self.log_level = log_level.upper()
+        logger.remove()
+        logger.add(sink=sys.stdout, level=self.log_level)
         # 读取配置文件
         if isinstance(configs, str):
+            # 获取当前程序绝对路径
+            absolute_path = os.path.dirname(__file__)
+            # 获取默认配置文件路径
+            config_path = os.path.join(absolute_path, f"configs/{configs}.yml")
+            configs = config_path if os.path.exists(config_path) else configs
             with open(configs, 'r', encoding='utf-8') as f:
                 configs = yaml.load(f.read(), Loader=yaml.FullLoader)
         self.configs = dict_to_object(configs)
+        if num_speakers is not None:
+            self.configs.model_conf.classifier.num_speakers = num_speakers
         # 覆盖配置文件中的参数
         if overwrites:
             overwrites = overwrites.split(",")
@@ -216,8 +235,9 @@ class PPVectorTrainer(object):
         else:
             # 不训练模型不包含分类器
             self.model = nn.Sequential(self.backbone)
-        # 打印模型信息，98是长度，这个取决于输入的音频长度
-        summary(self.model, (1, 98, input_size))
+        if self.log_level == "DEBUG" or self.log_level == "INFO":
+            # 打印模型信息，98是长度，这个取决于输入的音频长度
+            summary(self.model, (1, 98, input_size))
 
     def __train_epoch(self, epoch_id, save_model_path, local_rank, writer):
         train_times, accuracies, loss_sum = [], [], []
@@ -296,6 +316,7 @@ class PPVectorTrainer(object):
     def train(self,
               save_model_path='models/',
               log_dir='log/',
+              max_epoch=None,
               resume_model=None,
               pretrained_model=None,
               do_eval=True):
@@ -303,6 +324,7 @@ class PPVectorTrainer(object):
         训练模型
         :param save_model_path: 模型保存的路径
         :param log_dir: 保存VisualDL日志文件的路径
+        :param max_epoch: 最大训练轮数，对应配置文件中的train_conf.max_epoch
         :param resume_model: 恢复训练，当为None则不使用预训练模型
         :param pretrained_model: 预训练模型的路径，当为None则不使用预训练模型
         :param do_eval: 训练时是否评估模型
@@ -345,6 +367,8 @@ class PPVectorTrainer(object):
         self.eval_eer, self.eval_min_dcf, self.eval_threshold = None, None, None
         if local_rank == 0:
             writer.add_scalar('Train/lr', self.scheduler.get_lr(), last_epoch)
+        if max_epoch is not None:
+            self.configs.train_conf.max_epoch = max_epoch
         # 最大步数
         self.max_step = len(self.train_loader) * self.configs.train_conf.max_epoch
         self.train_step = max(last_epoch, 0) * len(self.train_loader)
