@@ -122,7 +122,7 @@ class PPVectorPredictor:
             self.users_name.append(name)
             self.users_audio_path.append(path)
             if self.audio_feature is None:
-                self.audio_feature = feature
+                self.audio_feature = feature[np.newaxis, :]
             else:
                 self.audio_feature = np.vstack((self.audio_feature, feature))
 
@@ -181,7 +181,7 @@ class PPVectorPredictor:
             indexes = [idx for idx, val in enumerate(self.users_name) if val == name]
             feature = self.audio_feature[indexes].mean(axis=0)
             if self.audio_feature_mean is None:
-                self.audio_feature_mean = feature
+                self.audio_feature_mean = feature[np.newaxis, :]
             else:
                 self.audio_feature_mean = np.vstack((self.audio_feature_mean, feature))
             self.users_name_mean.append(name)
@@ -200,6 +200,8 @@ class PPVectorPredictor:
             np_feature = np.array(np_feature)
         labels = []
         np_feature = self.normalize_features(np_feature.astype(np.float32))
+        if len(self.audio_feature_mean.shape) == 1:
+            self.audio_feature_mean = self.audio_feature_mean[np.newaxis, :]
         similarities = cosine_similarity(np_feature, self.audio_feature_mean)
         for sim in similarities:
             idx = np.argmax(sim)
@@ -321,9 +323,12 @@ class PPVectorPredictor:
         audio_segment = self._load_audio(audio_data=audio_data, sample_rate=sample_rate)
         feature = self.predict(audio_data=audio_segment)
         if self.audio_feature is None:
-            self.audio_feature = feature
+            self.audio_feature = feature[np.newaxis, :]
         else:
-            self.audio_feature = np.vstack((self.audio_feature, feature))
+            if len(self.audio_feature) == 0:
+                self.audio_feature = feature[np.newaxis, :]
+            else:
+                self.audio_feature = np.vstack((self.audio_feature, feature))
         # 保存
         if not os.path.exists(os.path.join(self.audio_db_path, user_name)):
             audio_path = os.path.join(self.audio_db_path, user_name, '0.wav')
@@ -343,7 +348,13 @@ class PPVectorPredictor:
             self.audio_feature_mean[index] = feature
         else:
             self.users_name_mean.append(user_name)
-            self.audio_feature_mean = np.vstack((self.audio_feature_mean, feature))
+            if self.audio_feature_mean is None:
+                self.audio_feature_mean = feature[np.newaxis, :]
+            else:
+                if len(self.audio_feature_mean) == 0:
+                    self.audio_feature_mean = feature[np.newaxis, :]
+                else:
+                    self.audio_feature_mean = np.vstack((self.audio_feature_mean, feature))
         return True, "注册成功"
 
     def recognition(self, audio_data, threshold=None, sample_rate=16000):
@@ -355,6 +366,9 @@ class PPVectorPredictor:
         """
         if threshold:
             self.threshold = threshold
+        if self.audio_feature_mean is None:
+            logger.warning("声纹库没有任何数据")
+            return [None, None]
         feature = self.predict(audio_data, sample_rate=sample_rate)
         result = self.__retrieval(np_feature=np.array([feature]))[0]
         return result

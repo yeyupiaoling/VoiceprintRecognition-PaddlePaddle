@@ -54,7 +54,7 @@ class SpeakerDiarization(object):
             if i > 0:
                 assert seg[0] >= audio[i - 1][1], 'modelscope error: Wrong time stamps.'
             audio_duration += seg[1] - seg[0]
-        assert audio_duration > 5, f'音频时间过段，应当大于5秒，当前长度是{audio_duration}秒'
+        assert audio_duration > 5, f'音频时间过短，应当大于5秒，当前长度是{audio_duration}秒'
 
     # 将音频片段继续细分割成固定长度的片段
     def _chunk(self, vad_segments: list) -> list:
