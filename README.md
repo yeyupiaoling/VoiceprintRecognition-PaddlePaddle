@@ -23,6 +23,11 @@
  - PaddlePaddle 2.5.1
  - Windows 10 or Ubuntu 18.04
 
+# 在线试用
+
+ - **[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
+ - **[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
+
 # 目录
 
 - [项目介绍](#基于PaddlePaddle实现的声纹识别系统)
