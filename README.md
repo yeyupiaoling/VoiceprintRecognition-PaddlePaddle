@@ -27,6 +27,7 @@
 
  - **[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
  - **[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
+ - **[说话人日志](https://tools.yeyupiaoling.cn/speech/speaker_diarization)**
 
 # 目录
 
