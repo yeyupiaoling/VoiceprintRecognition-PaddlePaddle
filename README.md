@@ -25,9 +25,18 @@
 
 # 在线试用
 
- - **[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
- - **[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
- - **[说话人日志](https://tools.yeyupiaoling.cn/speech/speaker_diarization)**
+ - **网页版：[声纹对比](https://tools.yeyupiaoling.cn/speech/voiceprint_compare)**
+ - **网页版：[声纹识别](https://tools.yeyupiaoling.cn/speech/voiceprint_recognition)**
+ - **网页版：[说话人日志](https://tools.yeyupiaoling.cn/speech/speaker_diarization)**
+
+
+<div align="center">
+  <img src="https://tools.yeyupiaoling.cn/static/wechat-qr/voiceprint-compare.jpg" alt="微信小程序" width="200">&nbsp&nbsp
+  <img src="https://tools.yeyupiaoling.cn/static/wechat-qr/voiceprint-recognition.jpg" alt="微信小程序" width="200">&nbsp&nbsp
+  <img src="https://tools.yeyupiaoling.cn/static/wechat-qr/speaker-diarization.jpg" alt="微信小程序" width="200"><br/>
+  声纹对比微信小程序   &nbsp &nbsp &nbsp &nbsp  声纹识别微信小程序     &nbsp &nbsp &nbsp &nbsp   说话人日志微信小程序
+</div>
+
 
 # 目录
 
